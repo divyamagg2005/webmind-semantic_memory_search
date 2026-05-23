@@ -31,3 +31,42 @@ dist/
 
 # typescript
 .tsbuildinfo
+
+
+# dependencies
+node_modules/
+
+# build output
+build/
+.cache/
+.parcel-cache/
+dist/
+
+# env
+.env
+
+# logs
+*.log
+
+# databases
+*.db
+
+# LanceDB
+lancedb/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Plasmo
+.plasmo/
+
+# sidecar dependencies
+sidecar/node_modules/
+
+# sidecar databases
+sidecar/*.db
+sidecar/lancedb/
+
+# vscode
+.vscode/

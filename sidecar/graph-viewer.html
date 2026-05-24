@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebMind Knowledge Graph</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, Arial, sans-serif; background: #0f1419; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+    header {
+      padding: 12px 20px;
+      background: #1a202c;
+      border-bottom: 1px solid #2d3748;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 18px; font-weight: 600; }
+    .stats { font-size: 12px; color: #a0aec0; display: flex; gap: 12px; flex-wrap: wrap; }
+    .legend { display: flex; gap: 12px; font-size: 12px; margin-left: auto; }
+    .legend span { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    #graph { flex: 1; background: #0f1419; }
+    .empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #718096;
+      gap: 12px;
+      padding: 40px;
+      text-align: center;
+    }
+    .controls label { font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    button {
+      padding: 6px 12px;
+      background: #3182ce;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { background: #2b6cb0; }
+    #detail {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      max-width: 320px;
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WebMind Knowledge Graph</h1>
+    <div class="stats" id="stats">Loading…</div>
+    <div class="controls">
+      <label><input type="checkbox" id="showMemories" checked /> Memories</label>
+      <button id="refresh">Refresh</button>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#4a90d9"></span> Concept</span>
+      <span><span class="dot" style="background:#48bb78"></span> Memory</span>
+      <span><span class="dot" style="background:#ed8936"></span> Cluster</span>
+    </div>
+  </header>
+  <div id="graph"></div>
+  <div id="detail"></div>
+
+  <script>
+    const API = "http://localhost:3001";
+    let network = null;
+
+    async function loadGraph() {
+      const showMemories = document.getElementById("showMemories").checked;
+      const container = document.getElementById("graph");
+      const statsEl = document.getElementById("stats");
+
+      try {
+        const res = await fetch(
+          `${API}/graph/data?memories=${showMemories}&limit=500`
+        );
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to load");
+
+        const s = data.stats;
+        statsEl.innerHTML = `
+          <span>${data.nodes.length} nodes</span>
+          <span>${data.edges.length} edges</span>
+          <span>${s.concepts} concepts</span>
+          <span>${s.memories} memories</span>
+          ${data.truncated ? "<span>(truncated)</span>" : ""}
+        `;
+
+        if (data.nodes.length === 0) {
+          container.innerHTML = "";
+          container.className = "empty";
+          container.innerHTML = `
+            <p><strong>No graph data yet</strong></p>
+            <p>Browse some pages with the extension loaded,<br/>then refresh this view.</p>
+          `;
+          return;
+        }
+
+        container.className = "";
+        container.innerHTML = "";
+
+        const nodes = new vis.DataSet(data.nodes);
+        const edges = new vis.DataSet(data.edges);
+
+        network = new vis.Network(
+          container,
+          { nodes, edges },
+          {
+            physics: {
+              stabilization: { iterations: 120 },
+              barnesHut: { gravitationalConstant: -8000, springLength: 120 }
+            },
+            interaction: { hover: true, tooltipDelay: 100 },
+            nodes: { shape: "dot", size: 14, borderWidth: 2 },
+            edges: { font: { size: 9, color: "#718096", strokeWidth: 0 }, smooth: { type: "continuous" } }
+          }
+        );
+
+        network.on("click", (params) => {
+          const detail = document.getElementById("detail");
+          if (!params.nodes.length) {
+            detail.style.display = "none";
+            return;
+          }
+          const id = params.nodes[0];
+          const node = data.nodes.find((n) => n.id === id);
+          if (!node) return;
+          detail.style.display = "block";
+          detail.innerHTML = `
+            <strong>${node.title || node.label}</strong><br/>
+            Type: ${node.group}<br/>
+            ${node.url ? `<a href="${node.url}" target="_blank" style="color:#63b3ed">${node.url}</a>` : ""}
+            ${node.memoryId ? `<br/>SQLite id: ${node.memoryId}` : ""}
+          `;
+        });
+      } catch (err) {
+        statsEl.textContent = "Error: " + err.message;
+        container.className = "empty";
+        container.innerHTML = `<p>Could not load graph. Is the sidecar running on port 3001?</p>`;
+      }
+    }
+
+    document.getElementById("refresh").onclick = loadGraph;
+    document.getElementById("showMemories").onchange = loadGraph;
+    loadGraph();
+  </script>
+</body>
+</html>

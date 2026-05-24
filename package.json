@@ -26,6 +26,11 @@
   "manifest": {
     "host_permissions": [
       "https://*/*"
+    ],
+    "permissions": [
+      "bookmarks",
+      "storage",
+      "tabs"
     ]
   }
 }

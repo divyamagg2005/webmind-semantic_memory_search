@@ -20,6 +20,7 @@
     "graphology-types": "^0.24.8",
     "natural": "^8.1.1",
     "ollama": "^0.6.3",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "vis-network": "^10.1.2"
   }
 }

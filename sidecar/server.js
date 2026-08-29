@@ -73,7 +73,31 @@ async function initializeVectorDB() {
 async function initialize() {
   await initializeVectorDB()
   await knowledgeGraph.initialize()
-  
+
+  // Purge graph nodes whose SQLite records no longer exist (prevents stale state after DB wipe)
+  try {
+    const dbIds = await new Promise((resolve, reject) =>
+      db.all("SELECT id FROM memories", [], (err, rows) => err ? reject(err) : resolve(rows.map(r => r.id)))
+    )
+    const dbIdSet = new Set(dbIds.map(String))
+    const staleNodes = []
+    knowledgeGraph.graph.forEachNode((nodeId, attrs) => {
+      if (attrs.nodeType === 'memory' && attrs.memoryId && !dbIdSet.has(String(attrs.memoryId))) {
+        staleNodes.push(nodeId)
+      }
+    })
+    for (const nodeId of staleNodes) {
+      try { knowledgeGraph.graph.dropNode(nodeId) } catch {}
+    }
+    if (staleNodes.length > 0) {
+      console.log(`Purged ${staleNodes.length} stale memory nodes from graph`)
+      knowledgeGraph.isDirty = true
+      await knowledgeGraph.save()
+    }
+  } catch (err) {
+    console.error("Graph reconciliation failed:", err.message)
+  }
+
   // Optimize database indexes
   try {
     await IndexOptimizer.optimizeIndexes(db)
@@ -132,6 +156,11 @@ app.post("/ingest", async (req, res) => {
     context = {},
     media = { images: [], videos: [] }
   } = pageData
+
+  console.log(`\n⏳ [WebMind Ingestion] Starting capture...`)
+  console.log(`   📄 Title: ${title}`)
+  console.log(`   🔗 URL: ${url}`)
+  console.log(`   📏 Content length: ${content?.length || 0} characters`)
 
   let memoryId = null
 
@@ -239,43 +268,84 @@ app.post("/ingest", async (req, res) => {
       }
     }
 
-    // Insert memory into SQLite
-    memoryId = await new Promise((resolve, reject) => {
-      db.run(
-        `INSERT INTO memories (
-          title, url, content, timestamp,
-          dwell_time, scroll_depth, revisit_count, last_accessed,
-          session_id, tab_group_id, sequential_position, previous_url,
-          is_bookmarked, is_pinned,
-          engagement_score, memory_strength,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          title,
-          url,
-          content,
-          timestamp,
-          engagement.dwellTime || 0,
-          engagement.scrollDepth || 0,
-          engagement.revisitCount || 0,
-          timestamp,
-          sessionId,
-          context.tabGroupId || null,
-          sequentialPosition,
-          context.previousUrl || null,
-          engagement.isBookmarked ? 1 : 0,
-          0, // is_pinned defaults to false
-          engagementScore,
-          memoryStrength,
-          timestamp,
-          timestamp
-        ],
-        function(err) {
-          if (err) reject(err)
-          else resolve(this.lastID)
-        }
+    // Upsert: one memory row per URL, update on revisit
+    const existingMemory = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT id, dwell_time, scroll_depth, revisit_count FROM memories WHERE url = ? ORDER BY timestamp DESC LIMIT 1`,
+        [url],
+        (err, row) => (err ? reject(err) : resolve(row))
       )
     })
+
+    let isRevisit = false
+
+    if (existingMemory) {
+      // Merge metrics: accumulate dwell, keep max scroll, use incoming revisit count
+      isRevisit = true
+      const mergedDwell    = (existingMemory.dwell_time   || 0) + (engagement.dwellTime  || 0)
+      const mergedScroll   = Math.max(existingMemory.scroll_depth || 0, engagement.scrollDepth || 0)
+      const mergedRevisits = Math.max(existingMemory.revisit_count || 0, engagement.revisitCount || 0)
+
+      const mergedEngagement = calculateEngagementScore({
+        dwellTime:    mergedDwell,
+        scrollDepth:  mergedScroll,
+        revisitCount: mergedRevisits
+      })
+      const mergedStrength = calculateMemoryStrength({
+        engagementScore:  mergedEngagement,
+        isBookmarked:     engagement.isBookmarked || false,
+        uniqueVisitDates: mergedRevisits,
+        associationBoost: 0
+      })
+
+      await new Promise((resolve, reject) => {
+        db.run(
+          `UPDATE memories SET
+             title = ?, content = ?, timestamp = ?,
+             dwell_time = ?, scroll_depth = ?, revisit_count = ?,
+             last_accessed = ?, is_bookmarked = ?,
+             engagement_score = ?, memory_strength = ?, updated_at = ?
+           WHERE id = ?`,
+          [
+            title, content, timestamp,
+            mergedDwell, mergedScroll, mergedRevisits,
+            timestamp, engagement.isBookmarked ? 1 : 0,
+            mergedEngagement, mergedStrength, timestamp,
+            existingMemory.id
+          ],
+          (err) => (err ? reject(err) : resolve())
+        )
+      })
+      memoryId = existingMemory.id
+
+    } else {
+      // First visit — insert new row
+      memoryId = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO memories (
+            title, url, content, timestamp,
+            dwell_time, scroll_depth, revisit_count, last_accessed,
+            session_id, tab_group_id, sequence_number, previous_url,
+            is_bookmarked, is_pinned,
+            engagement_score, memory_strength,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            title, url, content, timestamp,
+            engagement.dwellTime  || 0,
+            engagement.scrollDepth || 0,
+            engagement.revisitCount || 0,
+            timestamp,
+            sessionId, context.tabGroupId || null, sequentialPosition, context.previousUrl || null,
+            engagement.isBookmarked ? 1 : 0,
+            0,
+            engagementScore, memoryStrength,
+            timestamp, timestamp
+          ],
+          function(err) { if (err) reject(err); else resolve(this.lastID) }
+        )
+      })
+    }
 
     // Update session page count
     await new Promise((resolve, reject) => {
@@ -289,34 +359,27 @@ app.post("/ingest", async (req, res) => {
       )
     })
 
-    // Generate text embedding (queue for retry if Ollama unavailable)
-    let embeddingStored = false
-    try {
-      const embedding = await generateEmbedding(content, {
-        memoryId,
-        queueOnFailure: true
-      })
-
-      await table.add([
-        {
+    // Generate text embedding — skip on revisit (existing vector still valid)
+    let embeddingStored = isRevisit
+    if (!isRevisit) {
+      try {
+        const embedding = await generateEmbedding(content, {
+          memoryId,
+          queueOnFailure: true
+        })
+        await table.add([{
           vector: embedding,
           text: content,
           title,
           url,
           timestamp,
           memory_id: memoryId
-        }
-      ])
-      embeddingStored = true
-    } catch (embedErr) {
-      logError("ingest_embedding_failure", embedErr, { memoryId, url })
-      embeddingRetryQueue.enqueue({
-        text: content,
-        memoryId,
-        title,
-        url,
-        timestamp
-      })
+        }])
+        embeddingStored = true
+      } catch (embedErr) {
+        logError("ingest_embedding_failure", embedErr, { memoryId, url })
+        embeddingRetryQueue.enqueue({ text: content, memoryId, title, url, timestamp })
+      }
     }
 
     // Extract concepts from content
@@ -337,13 +400,32 @@ app.post("/ingest", async (req, res) => {
       conceptIds.push(conceptId)
     }
 
-    // Add memory node to knowledge graph
+    // Add memory node to knowledge graph (with domain + session context)
+    let pageDomain = null
+    try { pageDomain = new URL(url).hostname } catch {}
+
     const memoryNodeId = `memory_${memoryId}`
     knowledgeGraph.addMemory({
-      id: memoryNodeId,
-      memoryId: memoryId.toString(),
-      timestamp
+      id:        memoryNodeId,
+      memoryId:  memoryId.toString(),
+      timestamp,
+      sessionId: sessionId || null,
+      domain:    pageDomain
     })
+
+    // Add domain hub node and link memory to it
+    if (pageDomain) {
+      const domainNodeId = knowledgeGraph.addDomain(pageDomain)
+      knowledgeGraph.linkMemoryToDomain(memoryNodeId, domainNodeId)
+    }
+
+    // Link to previous memory in the same session (journey path)
+    if (!isRevisit && sessionId) {
+      const prevMemNodeId = knowledgeGraph.getPreviousMemoryInSession(sessionId, memoryNodeId)
+      if (prevMemNodeId) {
+        knowledgeGraph.linkMemoriesInSession(prevMemNodeId, memoryNodeId, sessionId)
+      }
+    }
 
     // Link memory to concepts
     for (const conceptId of conceptIds) {
@@ -366,51 +448,42 @@ app.post("/ingest", async (req, res) => {
       }
     }
 
-    // Process images if present
-    if (media.images && media.images.length > 0) {
-      for (const image of media.images) {
-        // Store image metadata in SQLite
-        await new Promise((resolve, reject) => {
-          db.run(
-            `INSERT INTO images (memory_id, url, width, height, alt_text)
-             VALUES (?, ?, ?, ?, ?)`,
-            [memoryId, image.url, image.width, image.height, image.alt || ''],
-            (err) => {
-              if (err) reject(err)
-              else resolve()
-            }
-          )
-        })
-        
-        // Note: CLIP embedding generation would happen here in full implementation
-        // For now, we skip it as CLIP is placeholder only
+    // Process images / videos — only on first visit to avoid duplicates
+    if (!isRevisit) {
+      if (media.images && media.images.length > 0) {
+        for (const image of media.images) {
+          await new Promise((resolve, reject) => {
+            db.run(
+              `INSERT INTO images (memory_id, url, width, height, alt) VALUES (?, ?, ?, ?, ?)`,
+              [memoryId, image.url, image.width, image.height, image.alt || ''],
+              (err) => (err ? reject(err) : resolve())
+            )
+          })
+        }
+      }
+      if (media.videos && media.videos.length > 0) {
+        for (const video of media.videos) {
+          await new Promise((resolve, reject) => {
+            db.run(
+              `INSERT INTO videos (memory_id, url, duration, thumbnail_url) VALUES (?, ?, ?, ?)`,
+              [memoryId, video.url, video.duration, video.thumbnailUrl],
+              (err) => (err ? reject(err) : resolve())
+            )
+          })
+        }
       }
     }
 
-    // Process videos if present
-    if (media.videos && media.videos.length > 0) {
-      for (const video of media.videos) {
-        // Store video metadata in SQLite
-        await new Promise((resolve, reject) => {
-          db.run(
-            `INSERT INTO videos (memory_id, url, duration, thumbnail_url)
-             VALUES (?, ?, ?, ?)`,
-            [memoryId, video.url, video.duration, video.thumbnailUrl],
-            (err) => {
-              if (err) reject(err)
-              else resolve()
-            }
-          )
-        })
-        
-        // Note: CLIP embedding generation would happen here in full implementation
-      }
-    }
-
-    console.log(`Ingested memory ${memoryId}: ${title}`)
-    console.log(`  - Concepts extracted: ${concepts.length}`)
-    console.log(`  - Associations created: ${associationsCreated}`)
-    console.log(`  - Session: ${sessionId}`)
+    console.log(`\n✅ [WebMind Ingestion] ${isRevisit ? "Updated existing memory" : "New memory captured"}:`)
+    console.log(`   📄 Title: ${title}`)
+    console.log(`   🔗 URL: ${url}`)
+    console.log(`   🆔 Memory ID: ${memoryId}`)
+    console.log(`   🧠 Concepts extracted: ${concepts.length}`)
+    console.log(`   🔗 Associations created: ${associationsCreated}`)
+    console.log(`   📊 Session: ${sessionId}`)
+    console.log(`   💾 Embedding stored: ${embeddingStored ? 'Yes' : 'No (queued for retry)'}`)
+    console.log(`   🖼️  Images: ${media.images?.length || 0}`)
+    console.log(`   🎥 Videos: ${media.videos?.length || 0}\n`)
 
     res.json({
       success: true,
@@ -459,6 +532,69 @@ function extractTimeReference(query) {
   return null
 }
 
+function parseTemporalContext(query) {
+  const now = new Date()
+  const q = query.toLowerCase()
+
+  if (/\btoday\b/.test(q)) {
+    const from = new Date(now); from.setHours(0,0,0,0)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: "today" }
+  }
+  if (/\byesterday\b/.test(q)) {
+    const from = new Date(now); from.setDate(from.getDate()-1); from.setHours(0,0,0,0)
+    const to = new Date(from); to.setHours(23,59,59,999)
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString(), label: "yesterday" }
+  }
+  if (/this morning/.test(q)) {
+    const from = new Date(now); from.setHours(5,0,0,0)
+    const to = new Date(now); to.setHours(12,0,0,0)
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString(), label: "this morning" }
+  }
+  if (/this afternoon/.test(q)) {
+    const from = new Date(now); from.setHours(12,0,0,0)
+    const to = new Date(now); to.setHours(18,0,0,0)
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString(), label: "this afternoon" }
+  }
+  if (/this evening|tonight/.test(q)) {
+    const from = new Date(now); from.setHours(18,0,0,0)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: "this evening" }
+  }
+  if (/last week|past week|this week/.test(q)) {
+    const from = new Date(now); from.setDate(from.getDate()-7)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: "last week" }
+  }
+  if (/last month|past month|this month/.test(q)) {
+    const from = new Date(now); from.setMonth(from.getMonth()-1)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: "last month" }
+  }
+  if (/last hour|an hour ago/.test(q)) {
+    const from = new Date(now.getTime() - 3600000)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: "last hour" }
+  }
+  const hoursAgo = q.match(/(\d+)\s+hours?\s+ago/)
+  if (hoursAgo) {
+    const n = parseInt(hoursAgo[1])
+    const from = new Date(now.getTime() - n * 3600000)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: `${n} hours ago` }
+  }
+  const daysAgo = q.match(/(\d+)\s+days?\s+ago/)
+  if (daysAgo) {
+    const n = parseInt(daysAgo[1])
+    const from = new Date(now); from.setDate(from.getDate()-n)
+    return { dateFrom: from.toISOString(), dateTo: now.toISOString(), label: `${n} days ago` }
+  }
+  const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+  const dayMatch = q.match(/(?:on|last)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/)
+  if (dayMatch) {
+    const target = dayNames.indexOf(dayMatch[1])
+    const diff = (now.getDay() - target + 7) % 7 || 7
+    const from = new Date(now); from.setDate(from.getDate()-diff); from.setHours(0,0,0,0)
+    const to = new Date(from); to.setHours(23,59,59,999)
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString(), label: dayMatch[1] }
+  }
+  return null
+}
+
 app.post("/search", async (req, res) => {
   const { query, options = {} } = req.body
 
@@ -470,12 +606,15 @@ app.post("/search", async (req, res) => {
   }
 
   const startTime = Date.now()
-  const queryTimeout = getQueryTimeout()
-  const deadline = startTime + queryTimeout
   const warnings = []
   let timedOut = false
 
-  const timeRemaining = () => Math.max(0, deadline - Date.now())
+  // Per-stage timeouts — embedding is slow on CPU, synthesis gets its own budget
+  const EMBED_TIMEOUT     = 55000
+  const RETRIEVAL_TIMEOUT = 10000
+  const SYNTHESIS_TIMEOUT = 10000
+
+  const timeRemaining = () => Math.max(0, EMBED_TIMEOUT - (Date.now() - startTime))
 
   try {
     let queryEmbedding = cacheManager.getQueryEmbedding(query)
@@ -503,7 +642,7 @@ app.post("/search", async (req, res) => {
     }
 
     let memories = []
-    if (queryEmbedding && timeRemaining() > 0) {
+    if (queryEmbedding) {
       memories = await withTimeout(
         hybridRetrieval({
           lanceTable: table,
@@ -518,7 +657,7 @@ app.post("/search", async (req, res) => {
             weights: options.weights
           }
         }),
-        timeRemaining(),
+        RETRIEVAL_TIMEOUT,
         "retrieval"
       )
 
@@ -529,12 +668,28 @@ app.post("/search", async (req, res) => {
       timedOut = true
     }
 
-    const enrichedMemories = (memories || []).map(memory => ({
+    const temporalCtx = parseTemporalContext(query)
+
+    let enrichedMemories = (memories || []).map(memory => ({
       ...memory,
       is_pinned: memory.isPinned || memory.is_pinned || false,
       is_bookmarked: memory.isBookmarked || memory.is_bookmarked || false,
       decayed_strength: memory.decayedStrength || memory.decayed_strength || memory.memory_strength
     }))
+
+    if (temporalCtx) {
+      const fromTs = new Date(temporalCtx.dateFrom).getTime()
+      const toTs = new Date(temporalCtx.dateTo).getTime()
+      const timeFiltered = enrichedMemories.filter(m => {
+        const ts = m.timestamp ? new Date(m.timestamp).getTime() : 0
+        return ts >= fromTs && ts <= toTs
+      })
+      if (timeFiltered.length > 0) {
+        enrichedMemories = timeFiltered
+      } else {
+        warnings.push(`No memories found for "${temporalCtx.label}" — showing all time results.`)
+      }
+    }
 
     let reconstruction
     if (ollamaUnavailable) {
@@ -551,26 +706,26 @@ app.post("/search", async (req, res) => {
         }
       }
       warnings.push("Answer synthesis skipped because Ollama is unavailable.")
-    } else if (timeRemaining() > 0 && enrichedMemories.length > 0) {
+    } else if (enrichedMemories.length > 0) {
       try {
         reconstruction = await withTimeout(
           reconstructMemory({
             query,
             memories: enrichedMemories,
             options: {
-              maxMemories: options.maxMemories || 10,
-              model: options.model || "llama3.2",
-              temperature: options.temperature || 0.7
+              maxMemories: options.maxMemories || 5,
+              model: options.model || "llama3.2:3b",
+              temperature: options.temperature || 0.3
             }
           }),
-          timeRemaining(),
+          SYNTHESIS_TIMEOUT,
           "synthesis"
         )
       } catch (synthErr) {
         if (synthErr.code === "QUERY_TIMEOUT") {
           timedOut = true
-          warnings.push(`Query exceeded ${queryTimeout}ms — returning ${enrichedMemories.length} partial results without synthesis.`)
-          logError("query_timeout", synthErr, { query, timeoutMs: queryTimeout, stage: "synthesis" })
+          warnings.push(`Showing ${enrichedMemories.length} matched results (LLM synthesis skipped — Ollama too slow on CPU).`)
+          logError("query_timeout", synthErr, { query, timeoutMs: SYNTHESIS_TIMEOUT, stage: "synthesis" })
         }
         reconstruction = {
           synthesizedAnswer: null,
@@ -586,11 +741,6 @@ app.post("/search", async (req, res) => {
         }
       }
     } else {
-      if (timeRemaining() <= 0) {
-        timedOut = true
-        warnings.push(`Query exceeded ${queryTimeout}ms — returning partial results.`)
-        logError("query_timeout", new Error("Query deadline exceeded"), { query, timeoutMs: queryTimeout })
-      }
       reconstruction = {
         synthesizedAnswer: null,
         citations: [],
@@ -609,6 +759,7 @@ app.post("/search", async (req, res) => {
     response.warnings = warnings
     response.timedOut = timedOut
     response.searchMode = ollamaUnavailable ? "search-only" : "hybrid"
+    if (temporalCtx) response.detectedTimeRange = temporalCtx
 
     const latency = Date.now() - startTime
     performanceMonitor.recordQuery(latency)
@@ -1143,6 +1294,10 @@ app.get("/clusters/:clusterId/memories", async (req, res) => {
 // KNOWLEDGE GRAPH VISUALIZATION
 // ============================================================================
 
+app.use("/static/vis-network.min.js", (req, res) => {
+  res.sendFile(path.join(__dirname, "node_modules/vis-network/standalone/umd/vis-network.min.js"))
+})
+
 app.get("/graph", (req, res) => {
   const htmlPath = path.join(__dirname, "graph-viewer.html")
   res.sendFile(htmlPath)
@@ -1152,34 +1307,111 @@ app.get("/graph/data", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 400, 1000)
     const includeMemories = req.query.memories !== "false"
+    const mode = ["full", "journey", "domains", "topics"].includes(req.query.mode) ? req.query.mode : "full"
+    const minConceptFreq = Math.max(1, parseInt(req.query.minConceptFreq, 10) || 1)
+    const dateFrom = req.query.dateFrom || null
+    const dateTo   = req.query.dateTo   || null
+    const domain   = req.query.domain   || null
 
-    const viz = knowledgeGraph.getVisualizationData({ maxNodes: limit, includeMemories })
+    // Build memory ID filter when date/domain params present
+    let memoryFilter = null
+    if (dateFrom || dateTo || domain) {
+      const conds = [], params = []
+      if (dateFrom) { conds.push("timestamp >= ?"); params.push(dateFrom) }
+      if (dateTo)   { conds.push("timestamp <= ?"); params.push(dateTo.replace(/T.*/, "") + "T23:59:59.999Z") }
+      if (domain)   { conds.push("url LIKE ?");     params.push(`%${domain}%`) }
+      const rows = await new Promise((resolve, reject) =>
+        db.all(`SELECT id FROM memories${conds.length ? " WHERE " + conds.join(" AND ") : ""}`,
+          params, (err, r) => (err ? reject(err) : resolve(r)))
+      )
+      memoryFilter = new Set(rows.map(r => r.id))
+    }
+
+    // Top domains for filter UI
+    const domainRows = await new Promise((resolve, reject) =>
+      db.all("SELECT url FROM memories ORDER BY engagement_score DESC, timestamp DESC LIMIT 300",
+        [], (err, r) => (err ? reject(err) : resolve(r)))
+    )
+    const domainMap = new Map()
+    for (const r of domainRows) {
+      try {
+        const host = new URL(r.url).hostname
+        domainMap.set(host, (domainMap.get(host) || 0) + 1)
+      } catch {}
+    }
+    const domains = [...domainMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([host, count]) => ({ host, count }))
+
+    const viz = knowledgeGraph.getVisualizationData({
+      maxNodes:        limit,
+      includeMemories: mode !== "topics",
+      memoryFilter,
+      mode,
+      minConceptFreq
+    })
     const stats = knowledgeGraph.getStats()
 
-    // Enrich memory nodes with page titles from SQLite
+    // Enrich memory nodes with full SQLite data
     for (const node of viz.nodes) {
       if (node.group !== "memory" || !node.memoryId) continue
-      const row = await new Promise((resolve, reject) => {
+      const row = await new Promise((resolve, reject) =>
         db.get(
-          "SELECT title, url FROM memories WHERE id = ?",
-          [parseInt(node.memoryId, 10)],
-          (err, r) => (err ? reject(err) : resolve(r))
-        )
-      })
+          "SELECT title, url, engagement_score, session_id, sequence_number, timestamp FROM memories WHERE id = ?",
+          [parseInt(node.memoryId, 10)], (err, r) => (err ? reject(err) : resolve(r)))
+      )
       if (row) {
-        node.label = row.title.length > 28 ? row.title.slice(0, 26) + "…" : row.title
-        node.title = `memory: ${row.title}`
-        node.url = row.url
+        const short = row.title.length > 24 ? row.title.slice(0, 22) + "…" : row.title
+        node.label           = short
+        node.title           = `${row.title}\n${row.url}\nEngagement: ${((row.engagement_score || 0) * 100).toFixed(0)}%`
+        node.url             = row.url
+        node.engagementScore = row.engagement_score
+        node.sessionId       = row.session_id
+        node.sequenceNumber  = row.sequence_number
+        node.timestamp       = row.timestamp
+        try { node.domain = new URL(row.url).hostname } catch {}
+        node.size = 14 + Math.min(Math.round((row.engagement_score || 0) * 20), 18)
       }
     }
 
-    res.json({
-      success: true,
-      stats,
-      ...viz
-    })
+    res.json({ success: true, stats, domains, ...viz })
   } catch (err) {
     logError("graph_data_failure", err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// ── Sessions summary (used by Journey view stats) ─────────────────────────────
+app.get("/graph/sessions", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100)
+    const rows = await new Promise((resolve, reject) =>
+      db.all(
+        `SELECT s.id, s.start_time, s.end_time, s.page_count,
+                COUNT(m.id) AS memory_count,
+                GROUP_CONCAT(m.url, '|||') AS urls
+         FROM sessions s
+         LEFT JOIN memories m ON m.session_id = s.id
+         GROUP BY s.id
+         ORDER BY s.start_time DESC
+         LIMIT ?`,
+        [limit], (err, r) => (err ? reject(err) : resolve(r))
+      )
+    )
+    const sessions = rows.map(r => ({
+      id:          r.id,
+      startTime:   r.start_time,
+      endTime:     r.end_time,
+      pageCount:   r.page_count,
+      memoryCount: r.memory_count,
+      domains:     [...new Set((r.urls || "").split("|||").map(u => {
+        try { return new URL(u).hostname } catch { return null }
+      }).filter(Boolean))].slice(0, 5)
+    }))
+    res.json({ success: true, sessions })
+  } catch (err) {
+    logError("sessions_summary_failure", err)
     res.status(500).json({ success: false, error: err.message })
   }
 })

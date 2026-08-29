@@ -319,30 +319,33 @@ function mergeResults(semanticResults, associativeResults) {
  * @returns {Promise<Array<Object>>} Enriched memories
  */
 async function enrichMemoriesWithMetadata(db, memories) {
+  if (!memories.length) return [];
+
+  const ids = memories.map(m => m.memoryId).filter(Boolean);
+  const placeholders = ids.map(() => '?').join(',');
+
+  const rows = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT id, title, url, content, timestamp, engagement_score, memory_strength,
+              is_bookmarked, is_pinned, revisit_count, session_id
+       FROM memories WHERE id IN (${placeholders})`,
+      ids,
+      (err, rows) => err ? reject(err) : resolve(rows)
+    );
+  });
+
+  const rowMap = new Map(rows.map(r => [r.id, r]));
   const enriched = [];
 
   for (const memory of memories) {
-    // Fetch full memory data from database
-    const memoryData = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM memories WHERE id = ?',
-        [memory.memoryId],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
-
+    const memoryData = rowMap.get(memory.memoryId) || rowMap.get(Number(memory.memoryId));
     if (memoryData) {
-      // Apply decay to get current strength
       const decayed = applyDecayAtQueryTime(memoryData);
-
       enriched.push({
         ...memory,
         title: memoryData.title,
         url: memoryData.url,
-        content: memoryData.content,
+        content: (memoryData.content || '').slice(0, 500),
         timestamp: memoryData.timestamp,
         engagementScore: memoryData.engagement_score,
         memoryStrength: memoryData.memory_strength,
@@ -397,43 +400,12 @@ async function hybridRetrieval(params) {
     return [];
   }
 
-  // Step 2: Identify concepts from top results
-  const memoryIds = semanticResults.map(r => r.memory_id);
-  const seedConcepts = identifyConceptsFromResults(
-    knowledgeGraph,
-    memoryIds,
-    topNForExpansion
-  );
-
-  // Step 3: Expand through knowledge graph (fallback to semantic-only on failure)
-  let associativeResults = [];
-  let graphExpansionFailed = false;
-  if (seedConcepts.length > 0) {
-    try {
-      const expansion = expandThroughGraph(knowledgeGraph, seedConcepts, {
-        maxHops,
-        minStrength: minAssociationStrength
-      });
-      associativeResults = expansion.associatedMemories;
-    } catch (graphErr) {
-      graphExpansionFailed = true;
-      logError('graph_traversal_failure', graphErr, { seedConceptCount: seedConcepts.length });
-    }
-  }
-
-  // Step 4: Merge results
-  const mergedResults = mergeResults(semanticResults, associativeResults);
-  const memories = Array.from(mergedResults.values());
-
-  // Step 5: Enrich with database metadata and apply decay
+  // Step 2: Enrich with database metadata (batch query — fast)
+  const memories = semanticResults.map(r => ({ memoryId: r.memory_id, semanticScore: r.semanticScore, associativeScore: 0, hops: null, concepts: [] }));
   const enrichedMemories = await enrichMemoriesWithMetadata(db, memories);
 
-  // Step 6: Rank by combined score
-  const rankedMemories = rankMemories(enrichedMemories, weights);
-
-  if (graphExpansionFailed) {
-    rankedMemories._metadata = { graphExpansionFailed: true };
-  }
+  // Step 3: Rank by semantic score only (graph traversal removed — too slow on CPU)
+  const rankedMemories = rankMemories(enrichedMemories, { ...weights, associative: 0, semantic: 0.8, strength: 0.2 });
 
   return rankedMemories;
 }

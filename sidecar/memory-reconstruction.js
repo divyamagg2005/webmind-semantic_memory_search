@@ -13,10 +13,10 @@ const { Ollama } = require('ollama');
  * Default reconstruction options
  */
 const DEFAULT_OPTIONS = {
-  maxMemories: 10,
-  model: 'llama3.2',
-  temperature: 0.7,
-  maxTokens: 500
+  maxMemories: 5,
+  model: 'llama3.2:3b',
+  temperature: 0.3,
+  maxTokens: 200
 };
 
 /**
@@ -28,20 +28,13 @@ const DEFAULT_OPTIONS = {
  * @param {number} maxMemories - Maximum memories to include
  * @returns {string} Formatted context string
  */
-function formatMemoriesForContext(memories, maxMemories = 10) {
+function formatMemoriesForContext(memories, maxMemories = 5) {
   const topMemories = memories.slice(0, maxMemories);
-  
-  let context = 'Here are relevant memories from your browsing history:\n\n';
-  
+  let context = 'Browsing history snippets:\n\n';
   topMemories.forEach((memory, index) => {
-    context += `[Memory ${index + 1}]\n`;
-    context += `Title: ${memory.title}\n`;
-    context += `URL: ${memory.url}\n`;
-    context += `Content: ${memory.content || memory.text || ''}\n`;
-    context += `Relevance Score: ${memory.combinedScore?.toFixed(3) || 'N/A'}\n`;
-    context += '\n';
+    const snippet = (memory.content || memory.text || '').slice(0, 300);
+    context += `[${index + 1}] ${memory.title}\n${memory.url}\n${snippet}\n\n`;
   });
-  
   return context;
 }
 
@@ -55,18 +48,10 @@ function formatMemoriesForContext(memories, maxMemories = 10) {
  * @returns {string} Complete prompt for LLM
  */
 function generateSynthesisPrompt(query, context) {
-  return `You are a helpful assistant that synthesizes information from a user's browsing history to answer their questions.
+  return `${context}
+Question: ${query}
 
-${context}
-
-User Question: ${query}
-
-Instructions:
-1. Synthesize a coherent answer using information from the memories above
-2. Combine relevant information from multiple memories when applicable
-3. Be concise but comprehensive
-4. If the memories don't contain enough information to answer the question, say so
-5. Reference specific memories by their number when citing information (e.g., "According to Memory 1...")
+Answer in 2-3 sentences using the snippets above. Mention the site name where you found it.
 
 Answer:`;
 }
@@ -119,7 +104,8 @@ async function synthesizeAnswer(query, memories, options = {}) {
       stream: false,
       options: {
         temperature,
-        num_predict: maxTokens
+        num_predict: maxTokens,
+        num_ctx: 2048
       }
     });
 

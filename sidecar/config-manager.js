@@ -142,8 +142,8 @@ const CONFIG_SCHEMA = {
   },
   query_timeout: {
     type: 'number',
-    min: 1000,
-    max: 30000,
+    min: 5000,
+    max: 60000,
     description: 'Query timeout in milliseconds'
   },
   embedding_dimensions: {
@@ -178,7 +178,7 @@ const DEFAULT_CONFIG = {
   llm_max_memories: 10,
   cache_size: 1000,
   batch_size: 10,
-  query_timeout: 5000,
+  query_timeout: 15000,
   embedding_dimensions: 768
 };
 

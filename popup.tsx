@@ -59,6 +59,7 @@ interface SearchResponse {
   warnings?: string[]
   timedOut?: boolean
   searchMode?: string
+  detectedTimeRange?: { label: string; dateFrom: string; dateTo: string }
   metadata?: { fallbackReason?: string }
 }
 
@@ -413,146 +414,138 @@ function IndexPopup() {
 
       {tab === "search" && (
         <>
-          <input
-            type="text"
-            placeholder="Search your memory..."
+          <textarea
+            placeholder="What are you trying to recall? Describe it naturally — include timing if you remember (e.g. 'that article about React hooks I read yesterday')"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && searchMemories()}
-            style={styles.input}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), searchMemories())}
+            style={{
+              ...styles.input,
+              height: 72,
+              resize: "none" as const,
+              lineHeight: 1.5,
+              fontFamily: "inherit"
+            }}
           />
           <button
             onClick={searchMemories}
             disabled={loading || !query.trim()}
             style={styles.btn("#007bff", loading || !query.trim())}>
-            {loading ? "Searching..." : "Search"}
+            {loading ? "Searching memories…" : "Recall"}
           </button>
 
-          {searchData?.warnings?.map((w, i) => (
-            <div key={i} style={styles.warning}>
-              {w}
+          {searchData?.detectedTimeRange && (
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              background: "#e8f4fd", border: "1px solid #b8daff",
+              borderRadius: 20, padding: "3px 10px", fontSize: 11,
+              color: "#2c5282", marginBottom: 10
+            }}>
+              <span>🕐</span>
+              <span>Filtering by: <strong>{searchData.detectedTimeRange.label}</strong></span>
             </div>
+          )}
+
+          {searchData?.warnings?.filter(w => !w.includes("LLM synthesis skipped")).map((w, i) => (
+            <div key={i} style={styles.warning}>{w}</div>
           ))}
 
           {searchData?.answer && (
             <div style={styles.synthesis}>
-              <strong>Synthesized answer</strong>
-              {searchData.synthesized === false && (
-                <span style={{ color: "#856404", marginLeft: 8 }}>(fallback)</span>
-              )}
-              <p style={{ margin: "8px 0 0 0", whiteSpace: "pre-wrap" }}>
+              <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#2c5282" }}>
+                Memory synthesis
+                {searchData.synthesized === false && (
+                  <span style={{ color: "#856404", marginLeft: 8, fontWeight: 400 }}>(fallback)</span>
+                )}
+              </div>
+              <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "#1a365d" }}>
                 {searchData.answer.split("**Sources:**")[0].trim()}
               </p>
             </div>
           )}
 
-          {searchData?.citations && searchData.citations.length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <strong style={{ fontSize: 12 }}>Citations</strong>
-              {searchData.citations.map((c, i) => (
-                <div key={i} style={{ fontSize: 12, marginTop: 6 }}>
-                  <a href={c.url} target="_blank" rel="noreferrer" style={{ color: "#007bff" }}>
-                    {c.title}
-                  </a>
-                  <span style={{ color: "#666", marginLeft: 6 }}>
-                    ({(c.relevanceScore * 100).toFixed(0)}%)
-                  </span>
-                  {c.excerpt && (
-                    <p style={{ margin: "2px 0 0 0", color: "#555" }}>{c.excerpt.slice(0, 120)}...</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {searchData?.associationPaths && searchData.associationPaths.length > 0 && (
-            <div style={{ marginBottom: 12, fontSize: 12 }}>
-              <strong>Association paths</strong>
-              {searchData.associationPaths.slice(0, 5).map((p, i) => (
-                <div key={i} style={{ marginTop: 4, color: "#555" }}>
-                  Memory {p.memoryId}: {p.concepts?.join(" → ")} ({p.hops} hop{p.hops !== 1 ? "s" : ""})
-                </div>
-              ))}
-            </div>
-          )}
-
           {results.length === 0 && !loading && query && searchData && (
-            <p style={{ textAlign: "center", color: "#666" }}>No results found</p>
+            <p style={{ textAlign: "center", color: "#666", marginTop: 16 }}>No matching memories found</p>
+          )}
+
+          {results.length > 0 && (
+            <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>
+              {results.length} matching {results.length === 1 ? "page" : "pages"} found
+              {searchData?.searchMode === "search-only" && " · semantic mode"}
+            </div>
           )}
 
           {results.map((item, index) => {
             const memoryId = item.memoryId ?? item.memory_id ?? item.id
             const isPinned = item.isPinned ?? item.is_pinned ?? false
             const isBookmarked = item.isBookmarked ?? item.is_bookmarked ?? false
-            const strength = item.decayedStrength ?? item.decayed_strength
-            const engagement = item.engagementScore ?? item.engagement_score
             const text = item.content || item.text || ""
+            const ts = (item as any).timestamp
+            const domain = (() => { try { return new URL(item.url).hostname } catch { return "" } })()
+            const timeStr = ts ? (() => {
+              const d = new Date(ts)
+              const now = new Date()
+              const diffMs = now.getTime() - d.getTime()
+              const diffH = diffMs / 3600000
+              if (diffH < 1) return `${Math.round(diffMs/60000)}m ago`
+              if (diffH < 24) return `${Math.round(diffH)}h ago`
+              if (diffH < 48) return `Yesterday ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`
+              return d.toLocaleDateString([], {month:"short",day:"numeric"}) + " " + d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})
+            })() : ""
+            const score = item.scores?.combined
+            const relevancePct = score !== undefined ? Math.round(Math.min(score, 1) * 100) : null
 
             return (
-              <div key={index} style={styles.card(isPinned)}>
-                <div style={{ position: "absolute", top: 8, right: 8, fontSize: 14 }}>
-                  {isPinned && <span title="Pinned">📌</span>}
-                  {isBookmarked && <span title="Bookmarked" style={{ marginLeft: 4 }}>🔖</span>}
+              <div key={index} style={{
+                ...styles.card(isPinned),
+                borderLeft: `3px solid ${isPinned ? "#ffc107" : "#007bff"}`,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                  <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, flex: 1, paddingRight: 8, lineHeight: 1.4 }}>
+                    {item.title || domain}
+                  </h3>
+                  {relevancePct !== null && (
+                    <span style={{
+                      fontSize: 10, background: relevancePct > 70 ? "#d4edda" : "#e2e8f0",
+                      color: relevancePct > 70 ? "#155724" : "#555",
+                      borderRadius: 10, padding: "1px 6px", whiteSpace: "nowrap", flexShrink: 0
+                    }}>
+                      {relevancePct}% match
+                    </span>
+                  )}
                 </div>
-
-                <h3 style={{ margin: "0 0 6px 0", fontSize: 14, paddingRight: 40 }}>{item.title}</h3>
 
                 <a
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
                   style={{
-                    fontSize: 11,
-                    color: "#007bff",
-                    display: "block",
-                    marginBottom: 6,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap"
+                    fontSize: 11, color: "#007bff", display: "block",
+                    marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
                   }}>
                   {item.url}
                 </a>
 
                 {text && (
-                  <p style={{ margin: "0 0 8px 0", fontSize: 12, color: "#333" }}>
-                    {text.slice(0, 150)}
-                    {text.length > 150 ? "..." : ""}
+                  <p style={{ margin: "0 0 6px 0", fontSize: 11, color: "#444", lineHeight: 1.4 }}>
+                    {text.slice(0, 160)}{text.length > 160 ? "…" : ""}
                   </p>
                 )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: 11,
-                    color: "#666"
-                  }}>
-                  <div>
-                    {item.scores?.combined !== undefined && (
-                      <span style={{ marginRight: 8 }}>
-                        Score: {item.scores.combined.toFixed(2)}
-                      </span>
-                    )}
-                    {strength !== undefined && (
-                      <span style={{ marginRight: 8 }}>Strength: {strength.toFixed(2)}</span>
-                    )}
-                    {engagement !== undefined && (
-                      <span>Engagement: {engagement.toFixed(2)}</span>
-                    )}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "#888" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {timeStr && <span>🕐 {timeStr}</span>}
+                    {domain && <span>🌐 {domain}</span>}
+                    {isBookmarked && <span>🔖</span>}
                   </div>
-
                   {memoryId && (
                     <button
                       onClick={() => togglePin(Number(memoryId), isPinned)}
                       style={{
-                        padding: "4px 8px",
-                        fontSize: 11,
-                        cursor: "pointer",
-                        backgroundColor: isPinned ? "#ffc107" : "#6c757d",
-                        color: "white",
-                        border: "none",
-                        borderRadius: 3
+                        padding: "2px 7px", fontSize: 10, cursor: "pointer",
+                        backgroundColor: isPinned ? "#ffc107" : "#e9ecef",
+                        color: isPinned ? "#fff" : "#555",
+                        border: "none", borderRadius: 3
                       }}>
                       {isPinned ? "Unpin" : "Pin"}
                     </button>

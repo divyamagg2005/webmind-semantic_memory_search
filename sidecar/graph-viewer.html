@@ -4,161 +4,602 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WebMind Knowledge Graph</title>
-  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="/static/vis-network.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, Arial, sans-serif; background: #0f1419; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
-    header {
-      padding: 12px 20px;
-      background: #1a202c;
-      border-bottom: 1px solid #2d3748;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    h1 { font-size: 18px; font-weight: 600; }
-    .stats { font-size: 12px; color: #a0aec0; display: flex; gap: 12px; flex-wrap: wrap; }
-    .legend { display: flex; gap: 12px; font-size: 12px; margin-left: auto; }
-    .legend span { display: flex; align-items: center; gap: 4px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    #graph { flex: 1; background: #0f1419; }
-    .empty {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: #718096;
-      gap: 12px;
-      padding: 40px;
-      text-align: center;
-    }
-    .controls label { font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
-    button {
-      padding: 6px 12px;
-      background: #3182ce;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    }
-    button:hover { background: #2b6cb0; }
-    #detail {
-      position: fixed;
-      bottom: 16px;
-      right: 16px;
-      max-width: 320px;
-      background: #1a202c;
-      border: 1px solid #2d3748;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 12px;
-      display: none;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#080c12;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+    /* ── Header ── */
+    header{background:#101520;border-bottom:1px solid #1a2235;padding:0 16px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .brand{font-size:15px;font-weight:700;white-space:nowrap;letter-spacing:-.3px}
+    .brand em{font-style:normal;color:#4299e1}
+    #stats{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+    .pill{background:#151f2e;border:1px solid #1e2d40;border-radius:20px;padding:2px 9px;font-size:11px;color:#8098b8;white-space:nowrap}
+    .pill b{color:#e2e8f0}
+    .hdr-r{display:flex;gap:7px;align-items:center;flex-shrink:0}
+
+    /* ── Filter / control bar ── */
+    .bar{background:#0c1220;border-bottom:1px solid #1a2235;padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
+    .sep{width:1px;height:18px;background:#1e2d40;flex-shrink:0}
+    .fg{display:flex;align-items:center;gap:5px}
+    .lbl{font-size:10px;color:#4a6080;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+
+    /* Tabs */
+    .tabs{display:flex;background:#151f2e;border-radius:5px;padding:2px;gap:2px}
+    .tab{padding:3px 9px;border:none;border-radius:3px;font-size:11px;cursor:pointer;background:transparent;color:#8098b8;transition:all .15s}
+    .tab.on{background:#4299e1;color:#fff}
+    .tab:hover:not(.on){background:#1e2d40;color:#c6d3e6}
+
+    /* Pills */
+    .pills{display:flex;gap:3px}
+    .p-btn{padding:2px 8px;border:1px solid #1e2d40;border-radius:10px;font-size:11px;cursor:pointer;background:transparent;color:#4a6080;transition:all .15s}
+    .p-btn.on{border-color:#4299e1;color:#4299e1;background:rgba(66,153,225,.12)}
+    .p-btn:hover:not(.on){border-color:#2d4060;color:#8098b8}
+
+    /* Form controls */
+    select,input[type=date],input[type=text],input[type=range]{background:#151f2e;border:1px solid #1e2d40;border-radius:4px;color:#e2e8f0;padding:3px 7px;font-size:11px;outline:none}
+    select:focus,input:focus{border-color:#4299e1}
+    select{min-width:100px}
+    input[type=text]{width:120px}
+    input[type=date]{width:114px;color-scheme:dark}
+    input[type=range]{width:90px;padding:0;background:transparent;cursor:pointer}
+
+    /* Buttons */
+    .btn{padding:4px 10px;border:none;border-radius:4px;font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap}
+    .primary{background:#4299e1;color:#fff}.primary:hover{background:#3182ce}
+    .ghost{background:#151f2e;color:#8098b8;border:1px solid #1e2d40}.ghost:hover{background:#1e2d40;color:#c6d3e6}
+
+    /* Toggle */
+    .tgl-wrap{display:flex;align-items:center;gap:5px}
+    .tgl-lbl{font-size:10px;color:#4a6080}
+    .tgl{position:relative;width:28px;height:16px;background:#1e2d40;border-radius:8px;cursor:pointer;border:none;transition:background .2s;flex-shrink:0}
+    .tgl.on{background:#4299e1}
+    .tgl::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s}
+    .tgl.on::after{transform:translateX(12px)}
+
+    /* ── Progress ── */
+    #prog{height:2px;background:#0c1220;flex-shrink:0}
+    #pfill{height:100%;background:linear-gradient(90deg,#4299e1,#48bb78);width:0%;transition:width .12s}
+
+    /* ── Main area ── */
+    .main{flex:1;display:flex;min-height:0}
+
+    /* Graph */
+    #gwrap{flex:1;position:relative;background:#080c12}
+    #graph{width:100%;height:100%}
+
+    /* Overlay */
+    .ovr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:40px;background:rgba(8,12,18,.85);pointer-events:none}
+    .ovr.h{display:none}
+    .ovr h3{color:#e2e8f0;font-size:15px}.ovr p{font-size:12px;color:#8098b8;max-width:340px;line-height:1.5}
+    .spin{width:28px;height:28px;border:2.5px solid #1e2d40;border-top-color:#4299e1;border-radius:50%;animation:sp .75s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+
+    /* Stab hint */
+    #shint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(16,21,32,.9);border:1px solid #1e2d40;border-radius:20px;padding:3px 13px;font-size:10px;color:#8098b8;display:none;white-space:nowrap;z-index:10}
+
+    /* ── Right sidebar ── */
+    #sidebar{width:220px;background:#0c1220;border-left:1px solid #1a2235;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+    .sb-section{padding:11px 12px;border-bottom:1px solid #1a2235}
+    .sb-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#4a6080;margin-bottom:8px}
+    .sb-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px}
+    .sb-key{color:#8098b8}
+    .sb-val{color:#e2e8f0;font-weight:600}
+    .sb-bar-wrap{background:#151f2e;border-radius:4px;height:5px;flex:1;margin-left:8px;overflow:hidden}
+    .sb-bar{height:100%;border-radius:4px;transition:width .3s}
+    .domain-item{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;cursor:pointer;padding:3px 5px;border-radius:4px;transition:background .15s}
+    .domain-item:hover{background:#151f2e}
+    .domain-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .domain-name{flex:1;color:#a0b4cc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .domain-count{color:#4a6080;font-size:10px}
+    .session-item{margin-bottom:5px;padding:5px 7px;background:#151f2e;border-radius:5px;font-size:11px}
+    .session-time{color:#4a6080;font-size:10px}
+    .session-domains{color:#8098b8;margin-top:2px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* ── Node detail ── */
+    #detail{position:fixed;bottom:16px;right:235px;width:270px;background:#101520;border:1px solid #1e2d40;border-radius:10px;padding:12px 13px;font-size:12px;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100}
+    #detail h4{font-size:13px;color:#e2e8f0;margin-bottom:6px;line-height:1.3}
+    .dm{color:#8098b8;margin-bottom:3px;line-height:1.4}
+    #dlink{color:#4299e1;text-decoration:none;font-size:10px;display:block;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #dlink:hover{text-decoration:underline}
+    #dx{position:absolute;top:7px;right:9px;background:none;border:none;color:#4a6080;cursor:pointer;font-size:15px;line-height:1}
+    #dx:hover{color:#e2e8f0}
+
+    /* ── Legend ── */
+    #legend{position:absolute;bottom:14px;left:14px;background:rgba(12,18,32,.92);border:1px solid #1e2d40;border-radius:7px;padding:8px 12px;font-size:11px;backdrop-filter:blur(6px)}
+    .li{display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#8098b8}
+    .li:last-child{margin:0}
+    .ldot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
   </style>
 </head>
 <body>
-  <header>
-    <h1>WebMind Knowledge Graph</h1>
-    <div class="stats" id="stats">Loading…</div>
-    <div class="controls">
-      <label><input type="checkbox" id="showMemories" checked /> Memories</label>
-      <button id="refresh">Refresh</button>
+
+<header>
+  <div class="brand">Web<em>Mind</em> Graph</div>
+  <div id="stats"><div class="pill">Loading…</div></div>
+  <div class="hdr-r">
+    <div class="tgl-wrap">
+      <button class="tgl on" id="physTgl"></button>
+      <span class="tgl-lbl">Physics</span>
     </div>
-    <div class="legend">
-      <span><span class="dot" style="background:#4a90d9"></span> Concept</span>
-      <span><span class="dot" style="background:#48bb78"></span> Memory</span>
-      <span><span class="dot" style="background:#ed8936"></span> Cluster</span>
+    <button class="btn ghost" id="fitBtn">Fit</button>
+    <button class="btn primary" id="refreshBtn">Refresh</button>
+  </div>
+</header>
+
+<!-- Filter bar -->
+<div class="bar">
+  <div class="fg">
+    <span class="lbl">View</span>
+    <div class="tabs">
+      <button class="tab on" data-mode="full">Full</button>
+      <button class="tab" data-mode="journey">Journey</button>
+      <button class="tab" data-mode="domains">Domains</button>
+      <button class="tab" data-mode="topics">Topics</button>
     </div>
-  </header>
-  <div id="graph"></div>
-  <div id="detail"></div>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Time</span>
+    <div class="pills">
+      <button class="p-btn" data-p="1h">1h</button>
+      <button class="p-btn" data-p="24h">24h</button>
+      <button class="p-btn" data-p="7d">7d</button>
+      <button class="p-btn" data-p="30d">30d</button>
+      <button class="p-btn on" data-p="all">All</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">From</span><input type="date" id="df">
+    <span class="lbl">To</span><input type="date" id="dt">
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Site</span>
+    <select id="dsel"><option value="">All sites</option></select>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Min freq</span>
+    <input type="range" id="freqSlider" min="1" max="10" value="1" step="1">
+    <span id="freqVal" style="font-size:11px;color:#8098b8;min-width:16px">1</span>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Find</span>
+    <input type="text" id="search" placeholder="Search node…">
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Show</span>
+    <div class="pills" id="typePills">
+      <button class="p-btn on" data-type="concept">Concepts</button>
+      <button class="p-btn on" data-type="memory">Memories</button>
+      <button class="p-btn on" data-type="domain">Domains</button>
+      <button class="p-btn on" data-type="cluster">Clusters</button>
+    </div>
+  </div>
+</div>
 
-  <script>
-    const API = "http://localhost:3001";
-    let network = null;
+<div id="prog"><div id="pfill"></div></div>
 
-    async function loadGraph() {
-      const showMemories = document.getElementById("showMemories").checked;
-      const container = document.getElementById("graph");
-      const statsEl = document.getElementById("stats");
+<div class="main">
+  <!-- Graph -->
+  <div id="gwrap">
+    <div id="graph"></div>
+    <div class="ovr" id="ovr"><div class="spin"></div><p>Loading…</p></div>
+    <div id="shint">Simulating physics…</div>
+    <div id="legend">
+      <div class="li" data-ltype="concept" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#4299e1"></div> Concept</div>
+      <div class="li" data-ltype="memory" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#48bb78"></div> Memory</div>
+      <div class="li" data-ltype="domain" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#9f7aea"></div> Domain</div>
+      <div class="li" data-ltype="cluster" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#ed8936"></div> Cluster</div>
+      <div class="li"><div class="ldot" style="background:#f6ad55;border-radius:0;width:12px;height:2px"></div> Session path</div>
+    </div>
+  </div>
 
-      try {
-        const res = await fetch(
-          `${API}/graph/data?memories=${showMemories}&limit=500`
-        );
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "Failed to load");
+  <!-- Right sidebar -->
+  <div id="sidebar">
+    <!-- Graph summary -->
+    <div class="sb-section">
+      <div class="sb-title">Overview</div>
+      <div class="sb-row"><span class="sb-key">Memories</span><span class="sb-val" id="sb-mem">–</span></div>
+      <div class="sb-row"><span class="sb-key">Concepts</span><span class="sb-val" id="sb-con">–</span></div>
+      <div class="sb-row"><span class="sb-key">Sessions</span><span class="sb-val" id="sb-ses">–</span></div>
+      <div class="sb-row"><span class="sb-key">Graph nodes</span><span class="sb-val" id="sb-total">–</span></div>
+    </div>
 
-        const s = data.stats;
-        statsEl.innerHTML = `
-          <span>${data.nodes.length} nodes</span>
-          <span>${data.edges.length} edges</span>
-          <span>${s.concepts} concepts</span>
-          <span>${s.memories} memories</span>
-          ${data.truncated ? "<span>(truncated)</span>" : ""}
-        `;
+    <!-- Top domains -->
+    <div class="sb-section" style="flex:1;overflow-y:auto">
+      <div class="sb-title">Top Sites</div>
+      <div id="domainList"></div>
+    </div>
 
-        if (data.nodes.length === 0) {
-          container.innerHTML = "";
-          container.className = "empty";
-          container.innerHTML = `
-            <p><strong>No graph data yet</strong></p>
-            <p>Browse some pages with the extension loaded,<br/>then refresh this view.</p>
-          `;
-          return;
-        }
+    <!-- Recent sessions -->
+    <div class="sb-section" style="flex:1;overflow-y:auto">
+      <div class="sb-title">Recent Sessions</div>
+      <div id="sessionList"></div>
+    </div>
+  </div>
+</div>
 
-        container.className = "";
-        container.innerHTML = "";
+<!-- Node detail panel -->
+<div id="detail">
+  <button id="dx">×</button>
+  <h4 id="dt-title"></h4>
+  <div class="dm" id="dt-type"></div>
+  <div class="dm" id="dt-stats"></div>
+  <a id="dlink" target="_blank" style="display:none"></a>
+</div>
 
-        const nodes = new vis.DataSet(data.nodes);
-        const edges = new vis.DataSet(data.edges);
+<script>
+const API = "http://localhost:3001";
+let network = null, visNodes = null, allNodes = [], physicsOn = true;
 
-        network = new vis.Network(
-          container,
-          { nodes, edges },
-          {
-            physics: {
-              stabilization: { iterations: 120 },
-              barnesHut: { gravitationalConstant: -8000, springLength: 120 }
-            },
-            interaction: { hover: true, tooltipDelay: 100 },
-            nodes: { shape: "dot", size: 14, borderWidth: 2 },
-            edges: { font: { size: 9, color: "#718096", strokeWidth: 0 }, smooth: { type: "continuous" } }
-          }
-        );
+const F = { mode: "full", dateFrom: "", dateTo: "", domain: "", minConceptFreq: 1, hiddenTypes: new Set() };
 
-        network.on("click", (params) => {
-          const detail = document.getElementById("detail");
-          if (!params.nodes.length) {
-            detail.style.display = "none";
-            return;
-          }
-          const id = params.nodes[0];
-          const node = data.nodes.find((n) => n.id === id);
-          if (!node) return;
-          detail.style.display = "block";
-          detail.innerHTML = `
-            <strong>${node.title || node.label}</strong><br/>
-            Type: ${node.group}<br/>
-            ${node.url ? `<a href="${node.url}" target="_blank" style="color:#63b3ed">${node.url}</a>` : ""}
-            ${node.memoryId ? `<br/>SQLite id: ${node.memoryId}` : ""}
-          `;
-        });
-      } catch (err) {
-        statsEl.textContent = "Error: " + err.message;
-        container.className = "empty";
-        container.innerHTML = `<p>Could not load graph. Is the sidecar running on port 3001?</p>`;
-      }
+function applyVisibility() {
+  if (!visNodes) return;
+  const updates = allNodes.map(n => ({
+    id: n.id,
+    hidden: F.hiddenTypes.has(n.group || "")
+  }));
+  visNodes.update(updates);
+  // sync pills
+  document.querySelectorAll("#typePills .p-btn[data-type]").forEach(btn => {
+    btn.classList.toggle("on", !F.hiddenTypes.has(btn.dataset.type));
+  });
+  // sync legend
+  document.querySelectorAll("#legend .li[data-ltype]").forEach(li => {
+    li.style.opacity = F.hiddenTypes.has(li.dataset.ltype) ? "0.35" : "1";
+  });
+}
+
+// Domain → hsl color (deterministic)
+function domainColor(d) {
+  let h = 0;
+  for (let i = 0; i < d.length; i++) { h = ((h << 5) - h) + d.charCodeAt(i); h |= 0; }
+  return `hsl(${Math.abs(h) % 360},65%,58%)`;
+}
+
+// Physics configs per view mode
+const PHYS = {
+  full: {
+    solver:"forceAtlas2Based",
+    forceAtlas2Based:{gravitationalConstant:-55,centralGravity:.008,springLength:130,springConstant:.04,damping:.45,avoidOverlap:.6},
+    stabilization:{enabled:true,iterations:200,updateInterval:12,fit:true},
+    maxVelocity:50,minVelocity:.6,timestep:.5
+  },
+  journey: {
+    solver:"forceAtlas2Based",
+    forceAtlas2Based:{gravitationalConstant:-80,centralGravity:.02,springLength:160,springConstant:.08,damping:.5,avoidOverlap:.8},
+    stabilization:{enabled:true,iterations:180,updateInterval:10,fit:true},
+    maxVelocity:60,minVelocity:.5,timestep:.5
+  },
+  domains: {
+    solver:"barnesHut",
+    barnesHut:{gravitationalConstant:-6000,centralGravity:.3,springLength:100,springConstant:.05,damping:.5,avoidOverlap:.5},
+    stabilization:{enabled:true,iterations:150,updateInterval:10,fit:true},
+    maxVelocity:50,minVelocity:.5,timestep:.5
+  },
+  topics: {
+    solver:"forceAtlas2Based",
+    forceAtlas2Based:{gravitationalConstant:-40,centralGravity:.005,springLength:110,springConstant:.03,damping:.4,avoidOverlap:.5},
+    stabilization:{enabled:true,iterations:200,updateInterval:12,fit:true},
+    maxVelocity:50,minVelocity:.5,timestep:.5
+  }
+};
+
+function setProgress(p){ document.getElementById("pfill").style.width = p+"%" }
+function showOvr(html,spin=true){
+  const e=document.getElementById("ovr"); e.classList.remove("h");
+  e.innerHTML = spin ? `<div class="spin"></div><p>${html}</p>` : html;
+}
+function hideOvr(){ document.getElementById("ovr").classList.add("h") }
+
+async function loadGraph() {
+  if(typeof vis==="undefined"){
+    showOvr(`<h3>vis-network not loaded</h3><p>Check internet — library loads from CDN.</p>`,false); return;
+  }
+  showOvr("Fetching graph data…"); setProgress(15);
+
+  const p = new URLSearchParams({ limit:"400", mode:F.mode, minConceptFreq:F.minConceptFreq });
+  if(F.dateFrom) p.set("dateFrom",F.dateFrom);
+  if(F.dateTo)   p.set("dateTo",F.dateTo);
+  if(F.domain)   p.set("domain",F.domain);
+
+  try {
+    const [gRes, sRes] = await Promise.all([
+      fetch(`${API}/graph/data?${p}`),
+      fetch(`${API}/graph/sessions?limit=10`)
+    ]);
+    const data = await gRes.json();
+    if(!data.success) throw new Error(data.error||"API error");
+
+    setProgress(45);
+
+    // ── Populate domain dropdown ──────────────────────────────────────────────
+    if(data.domains?.length) {
+      const sel = document.getElementById("dsel");
+      const cur = sel.value;
+      while(sel.options.length>1) sel.remove(1);
+      data.domains.forEach(({host,count}) => {
+        const o = document.createElement("option");
+        o.value=host; o.textContent=`${host} (${count})`; sel.appendChild(o);
+      });
+      if(cur) sel.value=cur;
     }
 
-    document.getElementById("refresh").onclick = loadGraph;
-    document.getElementById("showMemories").onchange = loadGraph;
-    loadGraph();
-  </script>
+    // ── Stats pills ───────────────────────────────────────────────────────────
+    const s = data.stats||{};
+    document.getElementById("stats").innerHTML = [
+      `<div class="pill"><b>${data.nodes.length}</b> nodes</div>`,
+      `<div class="pill"><b>${data.edges.length}</b> edges</div>`,
+      `<div class="pill"><b>${s.concepts||0}</b> concepts</div>`,
+      `<div class="pill"><b>${s.memories||0}</b> memories</div>`,
+      data.truncated ? `<div class="pill" style="color:#f6ad55">truncated</div>` : ""
+    ].join("");
+
+    // ── Sidebar stats ─────────────────────────────────────────────────────────
+    document.getElementById("sb-mem").textContent = s.memories||0;
+    document.getElementById("sb-con").textContent = s.concepts||0;
+    document.getElementById("sb-total").textContent = data.totalNodes||data.nodes.length;
+
+    // ── Sidebar domains ───────────────────────────────────────────────────────
+    const domList = document.getElementById("domainList");
+    domList.innerHTML = "";
+    if(data.domains?.length) {
+      const maxC = data.domains[0].count;
+      data.domains.slice(0,12).forEach(({host,count}) => {
+        const clr = domainColor(host);
+        const div = document.createElement("div");
+        div.className = "domain-item";
+        div.innerHTML = `<div class="domain-dot" style="background:${clr}"></div>
+          <span class="domain-name">${host}</span>
+          <span class="domain-count">${count}</span>`;
+        div.onclick = () => { F.domain = F.domain===host ? "" : host; document.getElementById("dsel").value=F.domain; loadGraph(); };
+        domList.appendChild(div);
+      });
+    }
+
+    // ── Sidebar sessions ──────────────────────────────────────────────────────
+    const sesList = document.getElementById("sessionList");
+    sesList.innerHTML = "";
+    try {
+      const sData = await sRes.json();
+      document.getElementById("sb-ses").textContent = sData.sessions?.length||0;
+      (sData.sessions||[]).slice(0,6).forEach(ses => {
+        const d  = new Date(ses.startTime);
+        const ts = d.toLocaleDateString()+" "+d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+        const div = document.createElement("div");
+        div.className = "session-item";
+        div.innerHTML = `<div style="color:#c6d3e6;font-size:11px">${ses.memoryCount} pages</div>
+          <div class="session-time">${ts}</div>
+          <div class="session-domains">${ses.domains.join(" · ")||"—"}</div>`;
+        sesList.appendChild(div);
+      });
+    } catch {}
+
+    if(data.nodes.length===0) {
+      setProgress(100); setTimeout(()=>setProgress(0),600);
+      showOvr(`<h3>No data matches these filters</h3><p>Try widening the time range or clearing the site filter.</p>`,false);
+      return;
+    }
+
+    hideOvr();
+    renderNetwork(data);
+  } catch(err) {
+    setProgress(0);
+    document.getElementById("stats").innerHTML=`<div class="pill" style="color:#fc8181">Error: ${err.message}</div>`;
+    showOvr(`<h3>Could not load graph</h3><p>Is the sidecar running on port 3001?</p>`,false);
+  }
+}
+
+function renderNetwork(data) {
+  const container = document.getElementById("graph");
+
+  // Domain color map (for memory node coloring in journey/domains modes)
+  const dcache = new Map();
+  const dColor = d => { if(!dcache.has(d)) dcache.set(d, domainColor(d)); return dcache.get(d); };
+
+  // Recency color for memory nodes: blue (new) → grey (old)
+  const timestamps = data.nodes.filter(n=>n.group==="memory"&&n.timestamp).map(n=>+new Date(n.timestamp));
+  const tsMin = Math.min(...timestamps)||0, tsMax = Math.max(...timestamps)||1;
+  const recencyAlpha = ts => {
+    const norm = tsMax===tsMin ? 1 : (+new Date(ts)-tsMin)/(tsMax-tsMin);
+    return 0.4 + norm*0.6; // 0.4 = oldest, 1.0 = newest
+  };
+
+  // Top-20% degree → show label
+  const maxDeg = Math.max(...data.nodes.map(n=>n.degree||0),1);
+  const labelThreshold = maxDeg * 0.2;
+
+  visNodes = new vis.DataSet(data.nodes.map(n => {
+    let color = n.color;
+
+    // Domain-colored memory nodes in journey/domains mode
+    if((F.mode==="journey"||F.mode==="domains") && n.group==="memory" && n.domain) {
+      const dc = dColor(n.domain);
+      const alpha = n.timestamp ? recencyAlpha(n.timestamp) : 0.7;
+      color = { background: dc, border: dc, opacity: alpha };
+    }
+
+    return {
+      ...n,
+      color,
+      hidden: F.hiddenTypes.has(n.group || ""),
+      label: (n.degree||0) >= labelThreshold ? (n.label||"") : "",
+      _fullLabel: n.label||n.id,
+      _domain: n.domain
+    };
+  }));
+  const visEdges = new vis.DataSet(data.edges);
+  allNodes = data.nodes;
+
+  setProgress(68);
+
+  if(network){ network.destroy(); network=null; }
+
+  const physConf = PHYS[F.mode] || PHYS.full;
+
+  network = new vis.Network(container, {nodes:visNodes,edges:visEdges}, {
+    nodes:{
+      shape:"dot",borderWidth:1.5,borderWidthSelected:3,
+      font:{size:10,color:"#e2e8f0",strokeWidth:2,strokeColor:"#080c12"}
+    },
+    edges:{
+      smooth:{type:"continuous",roundness:.2},
+      hoverWidth:2,
+      color:{inherit:false}
+    },
+    interaction:{
+      hover:true,tooltipDelay:120,hideEdgesOnDrag:true,
+      multiselect:false,navigationButtons:false,
+      keyboard:{enabled:true,speed:{x:10,y:10,zoom:.02}}
+    },
+    physics: physicsOn ? { enabled:true, ...physConf } : { enabled:false }
+  });
+
+  // Stab progress
+  const hint = document.getElementById("shint");
+  hint.style.display = "block";
+  hint.textContent = "Simulating physics…";
+
+  const onDone = () => {
+    hint.style.display = "none";
+    setProgress(100); setTimeout(()=>setProgress(0),700);
+    network.fit({ animation:{ duration:600, easingFunction:"easeInOutQuad" } });
+  };
+  network.on("stabilizationProgress",({iterations,total}) => {
+    hint.textContent = `Simulating… ${Math.round(iterations/total*100)}%`;
+    setProgress(68+Math.round(iterations/total*30));
+  });
+  network.on("stabilizationIterationsDone", onDone);
+  network.on("stabilized", onDone);
+
+  // Click → detail panel
+  network.on("click", params => {
+    if(!params.nodes.length){ document.getElementById("detail").style.display="none"; return; }
+    const node = allNodes.find(n=>n.id===params.nodes[0]);
+    if(node) showDetail(node);
+  });
+  // Double-click → open URL
+  network.on("doubleClick", params => {
+    if(!params.nodes.length) return;
+    const node = allNodes.find(n=>n.id===params.nodes[0]);
+    if(node?.url) window.open(node.url,"_blank");
+  });
+}
+
+function showDetail(node) {
+  const d = document.getElementById("detail");
+  d.style.display = "block";
+  document.getElementById("dt-title").textContent = node._fullLabel||node.label||node.id;
+  document.getElementById("dt-type").textContent = `Type: ${node.group}${node.domain ? " · "+node.domain : ""}`;
+  const parts = [];
+  if(node.degree   !== undefined) parts.push(`Connections: ${node.degree}`);
+  if(node.occurrenceCount > 1)    parts.push(`Occurrences: ${node.occurrenceCount}`);
+  if(node.engagementScore != null) parts.push(`Engagement: ${(node.engagementScore*100).toFixed(0)}%`);
+  if(node.timestamp) {
+    const dt = new Date(node.timestamp);
+    parts.push(`Visited: ${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`);
+  }
+  document.getElementById("dt-stats").textContent = parts.join("  ·  ");
+  const lnk = document.getElementById("dlink");
+  if(node.url){ lnk.href=node.url; lnk.textContent=node.url; lnk.style.display="block"; }
+  else lnk.style.display="none";
+}
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+
+document.getElementById("search").addEventListener("input", e => {
+  if(!network||!allNodes.length) return;
+  const q = e.target.value.toLowerCase().trim();
+  if(!q){ network.unselectAll(); return; }
+  const hit = allNodes.filter(n=>((n._fullLabel||n.label||"")+"|"+(n.url||"")).toLowerCase().includes(q)).map(n=>n.id);
+  if(hit.length){ network.selectNodes(hit); network.fit({nodes:hit,animation:true}); }
+});
+
+document.getElementById("physTgl").addEventListener("click", function(){
+  physicsOn = !physicsOn;
+  this.classList.toggle("on", physicsOn);
+  if(network){
+    if(physicsOn){
+      const pc = PHYS[F.mode]||PHYS.full;
+      network.setOptions({physics:{enabled:true,...pc}});
+      const h=document.getElementById("shint"); h.style.display="block"; h.textContent="Simulating physics…";
+    } else {
+      network.setOptions({physics:{enabled:false}});
+      document.getElementById("shint").style.display="none";
+    }
+  }
+});
+
+document.getElementById("fitBtn").addEventListener("click", ()=>
+  network&&network.fit({animation:{duration:500,easingFunction:"easeInOutQuad"}})
+);
+document.getElementById("refreshBtn").addEventListener("click", loadGraph);
+document.getElementById("dx").addEventListener("click", ()=>{ document.getElementById("detail").style.display="none"; });
+
+// View mode tabs
+document.querySelectorAll(".tab[data-mode]").forEach(btn=>btn.addEventListener("click",function(){
+  document.querySelectorAll(".tab[data-mode]").forEach(b=>b.classList.remove("on"));
+  this.classList.add("on"); F.mode=this.dataset.mode; loadGraph();
+}));
+
+// Time presets
+document.querySelectorAll(".p-btn[data-p]").forEach(btn=>btn.addEventListener("click",function(){
+  document.querySelectorAll(".p-btn[data-p]").forEach(b=>b.classList.remove("on"));
+  this.classList.add("on");
+  const preset=this.dataset.p, now=new Date(), toISO=d=>d.toISOString().slice(0,10);
+  if(preset==="all"){ F.dateFrom=F.dateTo=""; document.getElementById("df").value=""; document.getElementById("dt").value=""; }
+  else {
+    const ms={  "1h":36e5,"24h":864e5,"7d":6048e5,"30d":2592e6 };
+    F.dateFrom=toISO(new Date(now-ms[preset])); F.dateTo=toISO(now);
+    document.getElementById("df").value=F.dateFrom; document.getElementById("dt").value=F.dateTo;
+  }
+  loadGraph();
+}));
+
+document.getElementById("df").addEventListener("change",e=>{
+  F.dateFrom=e.target.value; document.querySelectorAll(".p-btn").forEach(b=>b.classList.remove("on")); loadGraph();
+});
+document.getElementById("dt").addEventListener("change",e=>{
+  F.dateTo=e.target.value; document.querySelectorAll(".p-btn").forEach(b=>b.classList.remove("on")); loadGraph();
+});
+
+document.getElementById("dsel").addEventListener("change",e=>{ F.domain=e.target.value; loadGraph(); });
+
+// Concept frequency slider
+let freqTimer;
+document.getElementById("freqSlider").addEventListener("input", e=>{
+  F.minConceptFreq=parseInt(e.target.value,10);
+  document.getElementById("freqVal").textContent = F.minConceptFreq;
+  clearTimeout(freqTimer); freqTimer=setTimeout(loadGraph, 400);
+});
+
+// Node type visibility toggles (pills)
+document.querySelectorAll("#typePills .p-btn[data-type]").forEach(btn => {
+  btn.addEventListener("click", function() {
+    const t = this.dataset.type;
+    if (F.hiddenTypes.has(t)) F.hiddenTypes.delete(t);
+    else F.hiddenTypes.add(t);
+    applyVisibility();
+  });
+});
+
+// Legend items also toggle
+document.querySelectorAll("#legend .li[data-ltype]").forEach(li => {
+  li.addEventListener("click", function() {
+    const t = this.dataset.ltype;
+    if (F.hiddenTypes.has(t)) F.hiddenTypes.delete(t);
+    else F.hiddenTypes.add(t);
+    applyVisibility();
+  });
+});
+
+loadGraph();
+</script>
 </body>
 </html>

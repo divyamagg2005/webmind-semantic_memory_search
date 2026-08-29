@@ -17,18 +17,21 @@ const path = require('path');
  */
 const NodeType = {
   CONCEPT: 'concept',
-  MEMORY: 'memory',
-  CLUSTER: 'cluster'
+  MEMORY:  'memory',
+  CLUSTER: 'cluster',
+  DOMAIN:  'domain'   // website hostname hub
 };
 
 /**
  * Edge Types
  */
 const EdgeType = {
-  CONCEPT_ASSOCIATION: 'concept_association',
-  MEMORY_CONCEPT_LINK: 'memory_concept_link',
-  CLUSTER_MEMBERSHIP: 'cluster_membership',
-  CROSS_CLUSTER_LINK: 'cross_cluster_link'
+  CONCEPT_ASSOCIATION:  'concept_association',
+  MEMORY_CONCEPT_LINK:  'memory_concept_link',
+  CLUSTER_MEMBERSHIP:   'cluster_membership',
+  CROSS_CLUSTER_LINK:   'cross_cluster_link',
+  DOMAIN_MEMBERSHIP:    'domain_membership',    // memory → domain
+  SESSION_SEQUENCE:     'session_sequence'      // memory → next memory (same session)
 };
 
 /**
@@ -192,19 +195,73 @@ class KnowledgeGraph {
    * @param {string} memory.timestamp - ISO timestamp
    * @returns {string} Memory node ID
    */
-  addMemory({ id, memoryId, timestamp }) {
+  addMemory({ id, memoryId, timestamp, sessionId = null, domain = null }) {
     if (this.graph.hasNode(id)) {
+      // Update session/domain if we have richer data now
+      if (sessionId) this.graph.mergeNodeAttributes(id, { sessionId });
+      if (domain)    this.graph.mergeNodeAttributes(id, { domain });
       return id;
     }
-
     this.graph.addNode(id, {
       nodeType: NodeType.MEMORY,
       memoryId,
-      timestamp
+      timestamp,
+      sessionId,
+      domain
     });
-
     this.isDirty = true;
     return id;
+  }
+
+  // ── Domain node operations ──────────────────────────────────────────────────
+
+  addDomain(domain) {
+    const nodeId = `domain_${domain}`;
+    if (this.graph.hasNode(nodeId)) {
+      this.graph.mergeNodeAttributes(nodeId, {
+        memoryCount: (this.graph.getNodeAttribute(nodeId, 'memoryCount') || 0) + 1
+      });
+    } else {
+      this.graph.addNode(nodeId, { nodeType: NodeType.DOMAIN, domain, memoryCount: 1 });
+    }
+    this.isDirty = true;
+    return nodeId;
+  }
+
+  linkMemoryToDomain(memNodeId, domainNodeId) {
+    if (!this.graph.hasNode(memNodeId) || !this.graph.hasNode(domainNodeId)) return false;
+    if (this.graph.hasEdge(memNodeId, domainNodeId)) return false;
+    this.graph.addEdge(memNodeId, domainNodeId, { edgeType: EdgeType.DOMAIN_MEMBERSHIP });
+    this.isDirty = true;
+    return true;
+  }
+
+  // ── Session-sequence operations ─────────────────────────────────────────────
+
+  linkMemoriesInSession(prevMemNodeId, nextMemNodeId, sessionId) {
+    if (!this.graph.hasNode(prevMemNodeId) || !this.graph.hasNode(nextMemNodeId)) return false;
+    if (this.graph.hasEdge(prevMemNodeId, nextMemNodeId)) return false;
+    this.graph.addEdge(prevMemNodeId, nextMemNodeId, {
+      edgeType: EdgeType.SESSION_SEQUENCE,
+      sessionId
+    });
+    this.isDirty = true;
+    return true;
+  }
+
+  // Find the most-recent memory node in a given session (exclude currentNodeId)
+  getPreviousMemoryInSession(sessionId, excludeNodeId) {
+    let latestNodeId = null, latestTs = null;
+    this.graph.forEachNode((nodeId, attrs) => {
+      if (attrs.nodeType !== NodeType.MEMORY) return;
+      if (attrs.sessionId !== sessionId) return;
+      if (nodeId === excludeNodeId) return;
+      if (!latestTs || attrs.timestamp > latestTs) {
+        latestTs    = attrs.timestamp;
+        latestNodeId = nodeId;
+      }
+    });
+    return latestNodeId;
   }
 
   /**
@@ -853,101 +910,249 @@ class KnowledgeGraph {
 
   /**
    * Export graph as nodes/edges for visualization (vis.js, etc.)
+   * Modes:
+   *   full     – concepts + memories + clusters (old default)
+   *   journey  – memories + session-sequence path + satellite concepts
+   *   domains  – domain hubs + memories + high-freq concepts
+   *   topics   – concepts only (filtered by minConceptFreq), memories as small anchors
+   *
    * @param {Object} options
    * @param {number} options.maxNodes - Max nodes to include
    * @param {boolean} options.includeMemories - Include memory nodes
    * @returns {{ nodes: Array, edges: Array, truncated: boolean }}
    */
   getVisualizationData(options = {}) {
-    const { maxNodes = 400, includeMemories = true } = options;
-    const nodeMeta = [];
+    const {
+      maxNodes       = 400,
+      includeMemories = true,
+      memoryFilter   = null,  // Set of numeric SQLite memory IDs (null = all)
+      mode           = "full", // "full" | "journey" | "domains" | "topics"
+      minConceptFreq = 1       // only show concepts seen in >= N pages
+    } = options;
 
+    // ── Pass 1: collect raw node metadata ────────────────────────────────────
+    const allNodes = new Map(); // nodeId → meta
     this.graph.forEachNode((nodeId, attrs) => {
-      if (attrs.nodeType === NodeType.MEMORY && !includeMemories) return;
-
       let label = nodeId;
-      if (attrs.nodeType === NodeType.CONCEPT) {
-        label = attrs.name || nodeId;
-      } else if (attrs.nodeType === NodeType.CLUSTER) {
-        label = attrs.label || "Cluster";
-      } else if (attrs.nodeType === NodeType.MEMORY) {
-        label = `Memory #${attrs.memoryId || "?"}`;
-      }
+      if      (attrs.nodeType === NodeType.CONCEPT) label = attrs.name || nodeId;
+      else if (attrs.nodeType === NodeType.CLUSTER) label = attrs.label || "Cluster";
+      else if (attrs.nodeType === NodeType.MEMORY)  label = `Memory #${attrs.memoryId || "?"}`;
+      else if (attrs.nodeType === NodeType.DOMAIN)  label = attrs.domain || nodeId;
 
-      nodeMeta.push({
-        id: nodeId,
-        type: attrs.nodeType,
+      allNodes.set(nodeId, {
+        id:             nodeId,
+        type:           attrs.nodeType,
         label,
-        memoryId: attrs.memoryId,
-        degree: this.graph.degree(nodeId)
+        memoryId:       attrs.memoryId,
+        domain:         attrs.domain,
+        sessionId:      attrs.sessionId,
+        timestamp:      attrs.timestamp,
+        occurrenceCount: attrs.occurrenceCount || 1,
+        degree:         this.graph.degree(nodeId)
       });
     });
 
-    const concepts = nodeMeta.filter((n) => n.type === NodeType.CONCEPT);
-    const clusters = nodeMeta.filter((n) => n.type === NodeType.CLUSTER);
-    const memories = nodeMeta
-      .filter((n) => n.type === NodeType.MEMORY)
-      .sort((a, b) => b.degree - a.degree);
+    // ── Pass 2: resolve memory ID filter → graph-node IDs ────────────────────
+    let filteredMemNodeIds = null;
+    if (memoryFilter !== null) {
+      filteredMemNodeIds = new Set();
+      allNodes.forEach((n, nodeId) => {
+        if (n.type !== NodeType.MEMORY) return;
+        const id = n.memoryId;
+        if (memoryFilter.has(id) || memoryFilter.has(Number(id)) || memoryFilter.has(String(id)))
+          filteredMemNodeIds.add(nodeId);
+      });
+    }
 
-    let selected = [...concepts, ...clusters];
-    const memoryBudget = Math.max(0, maxNodes - selected.length);
-    selected = selected.concat(memories.slice(0, memoryBudget));
+    // ── Pass 3: resolve which concept nodes pass the frequency filter ─────────
+    const conceptPassesFreq = (n) =>
+      n.type === NodeType.CONCEPT && n.occurrenceCount >= minConceptFreq;
 
-    const truncated = nodeMeta.length > selected.length;
-    const selectedIds = new Set(selected.map((n) => n.id));
+    // ── Pass 4: bucket nodes by type per mode ────────────────────────────────
+    const concepts = [], memories = [], clusters = [], domains = [];
 
-    const colorMap = {
-      [NodeType.CONCEPT]: { background: "#4a90d9", border: "#2c5282" },
-      [NodeType.MEMORY]: { background: "#48bb78", border: "#276749" },
-      [NodeType.CLUSTER]: { background: "#ed8936", border: "#c05621" }
+    allNodes.forEach((n) => {
+      if (n.type === NodeType.DOMAIN) {
+        if (mode === "domains") domains.push(n);
+        return;
+      }
+      if (n.type === NodeType.CLUSTER) {
+        if (mode === "full") clusters.push(n);
+        return;
+      }
+      if (n.type === NodeType.CONCEPT) {
+        if (mode === "journey") return; // no concepts as top-level in journey
+        if (!conceptPassesFreq(n)) return;
+        concepts.push(n);
+        return;
+      }
+      if (n.type === NodeType.MEMORY) {
+        if (!includeMemories) return;
+        if (mode === "topics") return; // no memories in topics view
+        if (filteredMemNodeIds !== null && !filteredMemNodeIds.has(n.id)) return;
+        memories.push(n);
+      }
+    });
+
+    // In journey mode, satellite concepts (1 hop from memories)
+    let journeyConcepts = [];
+    if (mode === "journey") {
+      const memSet = new Set(memories.map(n => n.id));
+      const seen   = new Set();
+      memSet.forEach((memId) => {
+        try {
+          this.graph.forEachNeighbor(memId, (nId, nAttrs) => {
+            if (nAttrs.nodeType === NodeType.CONCEPT && !seen.has(nId) && conceptPassesFreq(allNodes.get(nId) || {})) {
+              seen.add(nId);
+              journeyConcepts.push(allNodes.get(nId));
+            }
+          });
+        } catch {}
+      });
+      // Only keep top concepts by occurrence
+      journeyConcepts.sort((a, b) => b.occurrenceCount - a.occurrenceCount);
+      journeyConcepts = journeyConcepts.slice(0, Math.floor(maxNodes * 0.35));
+    }
+
+    // Sort each bucket by degree desc (keep the most-connected first)
+    [concepts, memories, domains, journeyConcepts].forEach(arr =>
+      arr.sort((a, b) => b.degree - a.degree)
+    );
+    clusters.sort((a, b) => b.degree - a.degree);
+
+    // Distribute the node budget
+    let selected;
+    if (mode === "journey") {
+      const memBudget = Math.min(memories.length, Math.ceil(maxNodes * 0.55));
+      const cncBudget = maxNodes - memBudget;
+      selected = [
+        ...memories.slice(0, memBudget),
+        ...journeyConcepts.slice(0, cncBudget)
+      ];
+    } else if (mode === "domains") {
+      const domBudget = Math.min(domains.length, Math.ceil(maxNodes * 0.1));
+      const memBudget = Math.min(memories.length, Math.ceil(maxNodes * 0.45));
+      const cncBudget = maxNodes - domBudget - memBudget;
+      selected = [
+        ...domains.slice(0, domBudget),
+        ...memories.slice(0, memBudget),
+        ...concepts.slice(0, cncBudget)
+      ];
+    } else if (mode === "topics") {
+      const cncBudget = Math.ceil(maxNodes * 0.85);
+      const memBudget = maxNodes - cncBudget;
+      selected = [
+        ...concepts.slice(0, cncBudget),
+        ...memories.slice(0, memBudget)
+      ];
+    } else { // full
+      const memBudget = Math.min(memories.length, Math.ceil(maxNodes * 0.2));
+      const clsBudget = Math.min(clusters.length, Math.ceil(maxNodes * 0.05));
+      const cncBudget = maxNodes - memBudget - clsBudget;
+      selected = [
+        ...concepts.slice(0, cncBudget),
+        ...memories.slice(0, memBudget),
+        ...clusters.slice(0, clsBudget)
+      ];
+    }
+
+    const truncated  = false; // frontend shows real counts in stats
+    const selectedIds = new Set(selected.map(n => n.id));
+
+    // ── Pass 5: build vis-network node objects ────────────────────────────────
+    const typeColor = {
+      [NodeType.CONCEPT]: { bg: "#4299e1", border: "#2b6cb0" },
+      [NodeType.MEMORY]:  { bg: "#48bb78", border: "#276749" },
+      [NodeType.CLUSTER]: { bg: "#ed8936", border: "#c05621" },
+      [NodeType.DOMAIN]:  { bg: "#9f7aea", border: "#6b46c1" }
     };
 
-    const nodes = selected.map((n) => ({
-      id: n.id,
-      label: n.label.length > 28 ? n.label.slice(0, 26) + "…" : n.label,
-      group: n.type,
-      title: `${n.type}: ${n.label}`,
-      memoryId: n.memoryId,
-      color: colorMap[n.type] || { background: "#a0aec0", border: "#718096" },
-      font: { color: n.type === NodeType.MEMORY ? "#fff" : "#fff", size: 11 }
-    }));
+    const maxDeg = Math.max(...selected.map(n => n.degree), 1);
 
+    const nodes = selected.map((n) => {
+      const norm  = n.degree / maxDeg;
+      const tc    = typeColor[n.type] || { bg: "#a0aec0", border: "#718096" };
+      const size  =
+        n.type === NodeType.DOMAIN   ? 24 + Math.round(norm * 10) :
+        n.type === NodeType.MEMORY   ? 14 + Math.round(norm * 14) :
+        n.type === NodeType.CLUSTER  ? 18 :
+        6  + Math.round(n.occurrenceCount > 1 ? Math.min(n.occurrenceCount, 20) * 1.2 : norm * 14);
+
+      const short = n.label.length > 22 ? n.label.slice(0, 20) + "…" : n.label;
+      return {
+        id:             n.id,
+        label:          short,
+        group:          n.type,
+        title:          `${n.type}: ${n.label}${n.occurrenceCount > 1 ? `\nOccurrences: ${n.occurrenceCount}` : ""}\nDegree: ${n.degree}`,
+        memoryId:       n.memoryId,
+        domain:         n.domain,
+        sessionId:      n.sessionId,
+        timestamp:      n.timestamp,
+        occurrenceCount: n.occurrenceCount,
+        degree:         n.degree,
+        color:          { background: tc.bg, border: tc.border },
+        size,
+        font:           { color: "#e2e8f0", size: 10, strokeWidth: 2, strokeColor: "#0a0e14" }
+      };
+    });
+
+    // ── Pass 6: build edges, mode-aware, capped ───────────────────────────────
     const edges = [];
     this.graph.forEachEdge((edgeKey, attrs, source, target) => {
       if (!selectedIds.has(source) || !selectedIds.has(target)) return;
 
-      let label = "";
-      let color = { color: "#cbd5e0" };
-      let width = 1;
+      const et       = attrs.edgeType;
+      const strength = attrs.strength || attrs.similarity || 0.5;
 
-      if (attrs.edgeType === EdgeType.CONCEPT_ASSOCIATION) {
-        label = "related";
-        width = 1 + (attrs.strength || 0.5) * 3;
-        color = { color: "#4a90d9" };
-      } else if (attrs.edgeType === EdgeType.MEMORY_CONCEPT_LINK) {
-        label = "mentions";
-        color = { color: "#48bb78" };
-      } else if (attrs.edgeType === EdgeType.CLUSTER_MEMBERSHIP) {
-        label = "in cluster";
-        color = { color: "#ed8936" };
-      } else if (attrs.edgeType === EdgeType.CROSS_CLUSTER_LINK) {
-        label = `sim ${(attrs.similarity || 0).toFixed(2)}`;
-        color = { color: "#ed8936" };
-        width = 2;
+      // Mode-specific edge inclusion
+      if (mode === "journey") {
+        if (et === EdgeType.CONCEPT_ASSOCIATION) return;
+        if (et === EdgeType.DOMAIN_MEMBERSHIP)   return;
+        if (et === EdgeType.CLUSTER_MEMBERSHIP)  return;
+      }
+      if (mode === "domains") {
+        if (et === EdgeType.CONCEPT_ASSOCIATION) return;
+        if (et === EdgeType.SESSION_SEQUENCE)    return;
+        if (et === EdgeType.CLUSTER_MEMBERSHIP)  return;
+      }
+      if (mode === "topics") {
+        if (et === EdgeType.SESSION_SEQUENCE)    return;
+        if (et === EdgeType.DOMAIN_MEMBERSHIP)   return;
+        if (et === EdgeType.CLUSTER_MEMBERSHIP)  return;
+      }
+      if (mode === "full") {
+        if (et === EdgeType.SESSION_SEQUENCE)    return; // too noisy in full view
+        if (et === EdgeType.DOMAIN_MEMBERSHIP)   return;
       }
 
-      edges.push({
-        id: edgeKey,
-        from: source,
-        to: target,
-        label,
-        arrows: attrs.edgeType === EdgeType.MEMORY_CONCEPT_LINK ? "to" : "",
-        color,
-        width
-      });
+      let color, width, priority, arrows;
+      if (et === EdgeType.CONCEPT_ASSOCIATION) {
+        color = { color: "#4299e1", opacity: 0.3 }; width = 0.5 + strength * 1.5; priority = 0;
+      } else if (et === EdgeType.MEMORY_CONCEPT_LINK) {
+        color = { color: "#48bb78", opacity: 0.7 }; width = 1.5; priority = 2;
+        arrows = { to: { enabled: true, scaleFactor: 0.4 } };
+      } else if (et === EdgeType.SESSION_SEQUENCE) {
+        color = { color: "#f6ad55", opacity: 0.9 }; width = 2.5; priority = 3;
+        arrows = { to: { enabled: true, scaleFactor: 0.6 } };
+      } else if (et === EdgeType.DOMAIN_MEMBERSHIP) {
+        color = { color: "#9f7aea", opacity: 0.6 }; width = 1.2; priority = 2;
+      } else if (et === EdgeType.CLUSTER_MEMBERSHIP) {
+        color = { color: "#ed8936", opacity: 0.65 }; width = 1; priority = 1;
+      } else {
+        color = { color: "#ed8936", opacity: 0.4 }; width = 1.5; priority = 1;
+      }
+
+      edges.push({ id: edgeKey, from: source, to: target, color, width, arrows, _s: strength, _p: priority });
     });
 
-    return { nodes, edges, truncated, totalNodes: nodeMeta.length };
+    const MAX_EDGES = mode === "journey" ? 600 : mode === "domains" ? 500 : 800;
+    if (edges.length > MAX_EDGES) {
+      edges.sort((a, b) => b._p - a._p || b._s - a._s);
+      edges.splice(MAX_EDGES);
+    }
+    edges.forEach(e => { delete e._s; delete e._p; });
+
+    return { nodes, edges, truncated, totalNodes: allNodes.size };
   }
 }
 

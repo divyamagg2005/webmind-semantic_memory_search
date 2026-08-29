@@ -13,7 +13,7 @@
 
 import type { PageData, EngagementMetrics, BrowsingContext, MediaContent, ImageData, VideoData } from "~types"
 
-console.log("WebMind Active - Enhanced Engagement Tracking")
+console.log("[WebMind Capture] Content script loaded on:", window.location.href)
 
 // ============================================================================
 // STATE MANAGEMENT
@@ -203,21 +203,8 @@ async function incrementRevisitCount(): Promise<number> {
 // TAB GROUP AND SESSION CONTEXT (Requirements 11.1, 10.1)
 // ============================================================================
 
-/**
- * Get current tab group ID
- * Requirement 11.1: Detect Chrome tab group identifier
- */
-async function getTabGroupId(): Promise<string | null> {
-  return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.groupId && tabs[0].groupId !== -1) {
-        resolve(`group-${tabs[0].groupId}`)
-      } else {
-        resolve(null)
-      }
-    })
-  })
-}
+// Note: Tab group detection is handled by background worker since
+// content scripts have limited access to chrome.tabs API
 
 /**
  * Get or create session ID
@@ -348,16 +335,8 @@ function extractMediaContent(): MediaContent {
 // BOOKMARK DETECTION
 // ============================================================================
 
-/**
- * Check if current URL is bookmarked
- */
-async function isBookmarked(): Promise<boolean> {
-  return new Promise((resolve) => {
-    chrome.bookmarks.search({ url: window.location.href }, (results) => {
-      resolve(results.length > 0)
-    })
-  })
-}
+// Note: Bookmark detection is handled by background worker since
+// content scripts don't have access to chrome.bookmarks API
 
 // ============================================================================
 // PAGE DATA COLLECTION AND SENDING
@@ -370,13 +349,13 @@ async function collectEngagementMetrics(): Promise<EngagementMetrics> {
   updateScrollDepth() // Final update
   const dwellTime = stopDwellTimer()
   const revisitCount = await getRevisitCount()
-  const bookmarked = await isBookmarked()
   
+  // Note: isBookmarked will be checked by background worker
   return {
     dwellTime,
     scrollDepth: Math.round(maxScrollDepth * 100) / 100, // Round to 2 decimal places
     revisitCount,
-    isBookmarked: bookmarked
+    isBookmarked: false // Will be updated by background worker
   }
 }
 
@@ -385,13 +364,13 @@ async function collectEngagementMetrics(): Promise<EngagementMetrics> {
  */
 async function collectBrowsingContext(): Promise<BrowsingContext> {
   const sessionId = await getSessionId()
-  const tabGroupId = await getTabGroupId()
   const sequence = await getSequenceNumber(sessionId)
   const prevUrl = await getPreviousUrl()
   
+  // Note: tabGroupId will be added by background worker
   return {
     sessionId,
-    tabGroupId,
+    tabGroupId: null, // Will be updated by background worker
     sequenceNumber: sequence,
     previousUrl: prevUrl
   }
@@ -404,10 +383,18 @@ async function collectBrowsingContext(): Promise<BrowsingContext> {
  * Requirement 4.7: Send revisit count with page data
  */
 async function sendPageData(): Promise<void> {
+  console.log("[WebMind Capture] Collecting page data for:", window.location.href)
+  
   try {
     const engagement = await collectEngagementMetrics()
     const context = await collectBrowsingContext()
     const media = extractMediaContent()
+    
+    console.log("[WebMind Capture] Metrics collected:", {
+      dwellTime: engagement.dwellTime,
+      scrollDepth: engagement.scrollDepth,
+      revisitCount: engagement.revisitCount
+    })
     
     const pageData: PageData = {
       title: document.title,
@@ -422,24 +409,39 @@ async function sendPageData(): Promise<void> {
     // Increment revisit count after collecting data
     await incrementRevisitCount()
 
-    // Send to background worker
-    chrome.runtime.sendMessage(pageData)
-
-    console.log("WebMind: Sent page data", {
-      dwellTime: `${Math.round(engagement.dwellTime / 1000)}s`,
-      scrollDepth: `${engagement.scrollDepth}%`,
-      revisitCount: engagement.revisitCount,
-      images: media.images.length,
-      videos: media.videos.length
+    // Send to background worker with response handling
+    chrome.runtime.sendMessage(pageData, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("[WebMind Capture] Message send error:", chrome.runtime.lastError.message)
+        return
+      }
+      
+      if (response?.success) {
+        console.log("[WebMind Capture] Successfully sent page data:", {
+          url: pageData.url,
+          title: pageData.title,
+          dwellTime: `${Math.round(engagement.dwellTime / 1000)}s`,
+          scrollDepth: `${engagement.scrollDepth}%`,
+          revisitCount: engagement.revisitCount,
+          images: media.images.length,
+          videos: media.videos.length
+        })
+      } else {
+        console.warn("[WebMind Capture] Failed to ingest:", response?.error || "Unknown error")
+      }
     })
+
+    console.log("[WebMind Capture] Page data sent to background worker")
   } catch (error) {
-    console.error("WebMind: Failed to send page data", error)
+    console.error("[WebMind Capture] Failed to send page data:", error)
   }
 }
 
 // ============================================================================
 // EVENT LISTENERS
 // ============================================================================
+
+console.log("[WebMind Capture] ⏰ Capture timer started - will capture page in 5 seconds")
 
 // Send data after initial delay (allow page to load and user to engage)
 setTimeout(sendPageData, 5000)

@@ -10,7 +10,7 @@
 
 import type { PageData, IngestResponse } from "~types"
 
-console.log("WebMind background worker running")
+console.log("[WebMind Background] Background worker running - ready to receive page captures")
 
 // ============================================================================
 // BOOKMARK CHANGE MONITORING (Requirements 18.3, 18.4)
@@ -76,8 +76,8 @@ chrome.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
  * Forward enhanced page data to sidecar server
  * Requirement 4.5: Forward to sidecar /ingest endpoint
  */
-chrome.runtime.onMessage.addListener(async (message: PageData) => {
-  console.log("Received from content script:", {
+chrome.runtime.onMessage.addListener((message: PageData, sender, sendResponse) => {
+  console.log("[WebMind Background] Received page capture:", {
     url: message.url,
     title: message.title,
     dwellTime: message.engagement?.dwellTime,
@@ -88,31 +88,83 @@ chrome.runtime.onMessage.addListener(async (message: PageData) => {
     videos: message.media?.videos?.length || 0
   })
 
-  try {
-    const response = await fetch("http://localhost:3001/ingest", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ pageData: message })
-    })
+  // Handle async processing - return true to keep message channel open
+  ;(async () => {
+    try {
+      // Check bookmark status (content scripts don't have access to bookmarks API)
+      const isBookmarked = await new Promise<boolean>((resolve) => {
+        chrome.bookmarks.search({ url: message.url }, (results) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[WebMind Background] Bookmark check failed:", chrome.runtime.lastError.message)
+            resolve(false)
+          } else {
+            resolve(results.length > 0)
+          }
+        })
+      })
 
-    if (!response.ok) {
-      throw new Error(`Sidecar returned ${response.status}: ${response.statusText}`)
+      // Get tab group ID (content scripts have limited tabs API access)
+      const tabGroupId = await new Promise<string | null>((resolve) => {
+        if (!sender.tab?.id) {
+          resolve(null)
+          return
+        }
+
+        chrome.tabs.get(sender.tab.id, (tab) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[WebMind Background] Tab group check failed:", chrome.runtime.lastError.message)
+            resolve(null)
+          } else if (tab.groupId && tab.groupId !== -1) {
+            resolve(`group-${tab.groupId}`)
+          } else {
+            resolve(null)
+          }
+        })
+      })
+
+      // Update page data with bookmark status and tab group
+      const pageDataWithEnrichment: PageData = {
+        ...message,
+        engagement: {
+          ...message.engagement,
+          isBookmarked
+        },
+        context: {
+          ...message.context,
+          tabGroupId
+        }
+      }
+
+      const response = await fetch("http://localhost:3001/ingest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ pageData: pageDataWithEnrichment })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Sidecar returned ${response.status}: ${response.statusText}`)
+      }
+
+      const result: IngestResponse = await response.json()
+
+      console.log("[WebMind Background] Sidecar ingestion successful:", {
+        memoryId: result.memoryId,
+        conceptsExtracted: result.conceptsExtracted,
+        associationsCreated: result.associationsCreated,
+        isBookmarked,
+        tabGroupId
+      })
+      
+      sendResponse({ success: true, result })
+    } catch (err) {
+      // Requirement 4.5: Handle ingestion failures gracefully
+      console.error("[WebMind Background] Failed to send to sidecar:", err)
+      sendResponse({ success: false, error: err.message })
     }
+  })()
 
-    const result: IngestResponse = await response.json()
-
-    console.log("Sidecar ingestion successful:", {
-      memoryId: result.memoryId,
-      conceptsExtracted: result.conceptsExtracted,
-      associationsCreated: result.associationsCreated
-    })
-  } catch (err) {
-    // Requirement 4.5: Handle ingestion failures gracefully
-    console.error("Failed to send to sidecar:", err)
-    
-    // Could implement retry logic or queue for later
-    // For now, just log the error
-  }
+  // Return true to indicate async response
+  return true
 })

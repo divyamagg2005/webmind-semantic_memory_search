@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:3001/memories?limit=5)",
+      "Bash(curl -s -w \"\\\\nTime: %{time_total}s\\\\n\" http://localhost:3001/health)",
+      "Bash(npm install *)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const j=JSON.parse\\(d\\); console.log\\(j.models?.map\\(m=>m.name\\).join\\('\\\\n'\\)\\)\")"
+    ]
+  }
+}

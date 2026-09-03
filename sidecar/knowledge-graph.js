@@ -19,7 +19,8 @@ const NodeType = {
   CONCEPT: 'concept',
   MEMORY:  'memory',
   CLUSTER: 'cluster',
-  DOMAIN:  'domain'   // website hostname hub
+  DOMAIN:  'domain',  // website hostname hub
+  IMAGE:   'image'    // page image (captioned + embedded)
 };
 
 /**
@@ -31,7 +32,8 @@ const EdgeType = {
   CLUSTER_MEMBERSHIP:   'cluster_membership',
   CROSS_CLUSTER_LINK:   'cross_cluster_link',
   DOMAIN_MEMBERSHIP:    'domain_membership',    // memory → domain
-  SESSION_SEQUENCE:     'session_sequence'      // memory → next memory (same session)
+  SESSION_SEQUENCE:     'session_sequence',     // memory → next memory (same session)
+  MEMORY_IMAGE_LINK:    'memory_image_link'     // memory → image
 };
 
 /**
@@ -284,6 +286,66 @@ class KnowledgeGraph {
       id: memoryNodeId,
       ...attrs
     };
+  }
+
+  // ============================================================================
+  // IMAGE NODE OPERATIONS
+  // ============================================================================
+
+  /**
+   * Add an image node (page image that has been captioned + embedded).
+   *
+   * @param {Object} image
+   * @param {string} image.id - Graph node id (e.g. `image_<sqliteId>`)
+   * @param {number} image.imageId - SQLite images.id
+   * @param {string} image.url - Image URL
+   * @param {string} [image.alt] - Alt text
+   * @param {string} [image.caption] - Vision-model caption
+   * @param {number} [image.width]
+   * @param {number} [image.height]
+   * @param {string} [image.memoryNodeId] - Parent memory node id
+   * @param {string} [image.timestamp]
+   * @returns {string} Image node id
+   */
+  addImage({ id, imageId, url, alt, caption, width, height, memoryNodeId = null, timestamp = null }) {
+    if (!this.graph.hasNode(id)) {
+      this.graph.addNode(id, {
+        nodeType: NodeType.IMAGE,
+        imageId,
+        url,
+        alt: alt || '',
+        caption: caption || '',
+        width: width || null,
+        height: height || null,
+        memoryNodeId,
+        timestamp
+      });
+      this.isDirty = true;
+    } else if (caption) {
+      this.graph.mergeNodeAttributes(id, { caption });
+      this.isDirty = true;
+    }
+    return id;
+  }
+
+  /**
+   * Link a memory node to one of its image nodes.
+   *
+   * @param {string} memoryNodeId
+   * @param {string} imageNodeId
+   * @returns {boolean} Success status
+   */
+  linkMemoryToImage(memoryNodeId, imageNodeId) {
+    if (!this.graph.hasNode(memoryNodeId) || !this.graph.hasNode(imageNodeId)) {
+      return false;
+    }
+    if (!this.graph.hasDirectedEdge(memoryNodeId, imageNodeId)) {
+      this.graph.addDirectedEdge(memoryNodeId, imageNodeId, {
+        edgeType: EdgeType.MEMORY_IMAGE_LINK
+      });
+      this.isDirty = true;
+    }
+    return true;
   }
 
   // ============================================================================
@@ -828,10 +890,12 @@ class KnowledgeGraph {
       concepts: 0,
       memories: 0,
       clusters: 0,
+      images: 0,
       conceptAssociations: 0,
       memoryConceptLinks: 0,
       clusterMemberships: 0,
-      crossClusterLinks: 0
+      crossClusterLinks: 0,
+      memoryImageLinks: 0
     };
 
     // Count nodes by type
@@ -839,6 +903,7 @@ class KnowledgeGraph {
       if (attrs.nodeType === NodeType.CONCEPT) stats.concepts++;
       else if (attrs.nodeType === NodeType.MEMORY) stats.memories++;
       else if (attrs.nodeType === NodeType.CLUSTER) stats.clusters++;
+      else if (attrs.nodeType === NodeType.IMAGE) stats.images++;
     });
 
     // Count edges by type
@@ -847,6 +912,7 @@ class KnowledgeGraph {
       else if (attrs.edgeType === EdgeType.MEMORY_CONCEPT_LINK) stats.memoryConceptLinks++;
       else if (attrs.edgeType === EdgeType.CLUSTER_MEMBERSHIP) stats.clusterMemberships++;
       else if (attrs.edgeType === EdgeType.CROSS_CLUSTER_LINK) stats.crossClusterLinks++;
+      else if (attrs.edgeType === EdgeType.MEMORY_IMAGE_LINK) stats.memoryImageLinks++;
     });
 
     return stats;
@@ -938,6 +1004,8 @@ class KnowledgeGraph {
       else if (attrs.nodeType === NodeType.CLUSTER) label = attrs.label || "Cluster";
       else if (attrs.nodeType === NodeType.MEMORY)  label = `Memory #${attrs.memoryId || "?"}`;
       else if (attrs.nodeType === NodeType.DOMAIN)  label = attrs.domain || nodeId;
+      else if (attrs.nodeType === NodeType.IMAGE)
+        label = attrs.alt || (attrs.caption || "").slice(0, 24) || "image";
 
       allNodes.set(nodeId, {
         id:             nodeId,
@@ -948,7 +1016,13 @@ class KnowledgeGraph {
         sessionId:      attrs.sessionId,
         timestamp:      attrs.timestamp,
         occurrenceCount: attrs.occurrenceCount || 1,
-        degree:         this.graph.degree(nodeId)
+        degree:         this.graph.degree(nodeId),
+        // image-only fields
+        imageId:        attrs.imageId,
+        imageUrl:       attrs.url,
+        caption:        attrs.caption,
+        alt:            attrs.alt,
+        memoryNodeId:   attrs.memoryNodeId
       });
     });
 
@@ -969,7 +1043,8 @@ class KnowledgeGraph {
       n.type === NodeType.CONCEPT && n.occurrenceCount >= minConceptFreq;
 
     // ── Pass 4: bucket nodes by type per mode ────────────────────────────────
-    const concepts = [], memories = [], clusters = [], domains = [];
+    const concepts = [], memories = [], clusters = [], domains = [], images = [];
+    const imagesShown = mode === "full" || mode === "journey";
 
     allNodes.forEach((n) => {
       if (n.type === NodeType.DOMAIN) {
@@ -978,6 +1053,13 @@ class KnowledgeGraph {
       }
       if (n.type === NodeType.CLUSTER) {
         if (mode === "full") clusters.push(n);
+        return;
+      }
+      if (n.type === NodeType.IMAGE) {
+        if (!imagesShown) return;
+        if (filteredMemNodeIds !== null &&
+            !filteredMemNodeIds.has(n.memoryNodeId)) return;
+        images.push(n);
         return;
       }
       if (n.type === NodeType.CONCEPT) {
@@ -1056,16 +1138,32 @@ class KnowledgeGraph {
       ];
     }
 
-    const truncated  = false; // frontend shows real counts in stats
-    const selectedIds = new Set(selected.map(n => n.id));
+    let truncated  = false; // frontend shows real counts in stats
+    let selectedIds = new Set(selected.map(n => n.id));
+
+    // Attach image nodes to memory nodes that made the cut (full / journey only).
+    if (imagesShown && images.length > 0) {
+      const imgBudget = Math.max(0, Math.ceil(maxNodes * 0.1));
+      const attachable = images
+        .filter(n => selectedIds.has(n.memoryNodeId))
+        .sort((a, b) => b.degree - a.degree)
+        .slice(0, imgBudget);
+      if (attachable.length > 0) {
+        selected = [...selected, ...attachable];
+        selectedIds = new Set(selected.map(n => n.id));
+      }
+    }
 
     // ── Pass 5: build vis-network node objects ────────────────────────────────
     const typeColor = {
       [NodeType.CONCEPT]: { bg: "#4299e1", border: "#2b6cb0" },
       [NodeType.MEMORY]:  { bg: "#48bb78", border: "#276749" },
       [NodeType.CLUSTER]: { bg: "#ed8936", border: "#c05621" },
-      [NodeType.DOMAIN]:  { bg: "#9f7aea", border: "#6b46c1" }
+      [NodeType.DOMAIN]:  { bg: "#9f7aea", border: "#6b46c1" },
+      [NodeType.IMAGE]:   { bg: "#ec4899", border: "#be185d" }
     };
+    // 1×1 transparent GIF shown when an image URL fails to load
+    const BROKEN_IMG = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
     const maxDeg = Math.max(...selected.map(n => n.degree), 1);
 
@@ -1076,10 +1174,12 @@ class KnowledgeGraph {
         n.type === NodeType.DOMAIN   ? 24 + Math.round(norm * 10) :
         n.type === NodeType.MEMORY   ? 14 + Math.round(norm * 14) :
         n.type === NodeType.CLUSTER  ? 18 :
+        n.type === NodeType.IMAGE    ? 20 :
         6  + Math.round(n.occurrenceCount > 1 ? Math.min(n.occurrenceCount, 20) * 1.2 : norm * 14);
 
       const short = n.label.length > 22 ? n.label.slice(0, 20) + "…" : n.label;
-      return {
+
+      const node = {
         id:             n.id,
         label:          short,
         group:          n.type,
@@ -1094,6 +1194,19 @@ class KnowledgeGraph {
         size,
         font:           { color: "#e2e8f0", size: 10, strokeWidth: 2, strokeColor: "#0a0e14" }
       };
+
+      if (n.type === NodeType.IMAGE) {
+        node.shape       = "image";
+        node.image       = n.imageUrl || BROKEN_IMG;
+        node.brokenImage = BROKEN_IMG;
+        node.url         = n.imageUrl;
+        node.imageId     = n.imageId;
+        node.caption     = n.caption;
+        node.alt         = n.alt;
+        node.title       = `image: ${n.alt || "image"}${n.caption ? `\n${n.caption}` : ""}`;
+      }
+
+      return node;
     });
 
     // ── Pass 6: build edges, mode-aware, capped ───────────────────────────────
@@ -1114,11 +1227,13 @@ class KnowledgeGraph {
         if (et === EdgeType.CONCEPT_ASSOCIATION) return;
         if (et === EdgeType.SESSION_SEQUENCE)    return;
         if (et === EdgeType.CLUSTER_MEMBERSHIP)  return;
+        if (et === EdgeType.MEMORY_IMAGE_LINK)   return;
       }
       if (mode === "topics") {
         if (et === EdgeType.SESSION_SEQUENCE)    return;
         if (et === EdgeType.DOMAIN_MEMBERSHIP)   return;
         if (et === EdgeType.CLUSTER_MEMBERSHIP)  return;
+        if (et === EdgeType.MEMORY_IMAGE_LINK)   return;
       }
       if (mode === "full") {
         if (et === EdgeType.SESSION_SEQUENCE)    return; // too noisy in full view
@@ -1138,6 +1253,9 @@ class KnowledgeGraph {
         color = { color: "#9f7aea", opacity: 0.6 }; width = 1.2; priority = 2;
       } else if (et === EdgeType.CLUSTER_MEMBERSHIP) {
         color = { color: "#ed8936", opacity: 0.65 }; width = 1; priority = 1;
+      } else if (et === EdgeType.MEMORY_IMAGE_LINK) {
+        color = { color: "#ec4899", opacity: 0.7 }; width = 1.2; priority = 2;
+        arrows = { to: { enabled: true, scaleFactor: 0.4 } };
       } else {
         color = { color: "#ed8936", opacity: 0.4 }; width = 1.5; priority = 1;
       }

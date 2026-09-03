@@ -16,7 +16,9 @@ const assert = require('node:assert');
 const {
   TEXT_WEIGHT,
   IMAGE_WEIGHT,
+  VISION_MODEL,
   OllamaEmbeddingClient,
+  OllamaVisionClient,
   CLIPEmbeddingClient,
   combineMultiModalScores,
   rankByMultiModalScore,
@@ -84,6 +86,55 @@ describe('Multi-Modal Embedding Core Logic', () => {
         async () => await client.generateTextEmbedding(null),
         /Invalid text input/
       );
+    });
+  });
+
+  describe('OllamaVisionClient', () => {
+    it('uses the default vision model, and an override when given', () => {
+      assert.strictEqual(new OllamaVisionClient().model, VISION_MODEL);
+      assert.strictEqual(new OllamaVisionClient({ model: 'moondream' }).model, 'moondream');
+    });
+
+    it('decodes a base64 data: URL without touching the network', async () => {
+      const client = new OllamaVisionClient();
+      const b64 = Buffer.from('fakepng').toString('base64');
+      const out = await client.fetchImageBase64(`data:image/png;base64,${b64}`);
+      assert.strictEqual(out, b64);
+    });
+
+    it('rejects a non-image data: URL', async () => {
+      const client = new OllamaVisionClient();
+      const out = await client.fetchImageBase64('data:text/plain;base64,aGVsbG8=');
+      assert.strictEqual(out, null);
+    });
+
+    it('captionImage returns the trimmed model description', async () => {
+      const client = new OllamaVisionClient();
+      client.fetchImageBase64 = async () => 'ZmFrZQ==';
+      client.ollama = { generate: async () => ({ response: '  A screenshot of a code editor.  ' }) };
+
+      const caption = await client.captionImage('https://example.com/a.png', 'editor');
+      assert.strictEqual(caption, 'A screenshot of a code editor.');
+    });
+
+    it('captionImage returns null when the image cannot be fetched', async () => {
+      const client = new OllamaVisionClient();
+      client.fetchImageBase64 = async () => null;
+      let called = false;
+      client.ollama = { generate: async () => { called = true; return { response: 'x' }; } };
+
+      const caption = await client.captionImage('https://example.com/missing.png');
+      assert.strictEqual(caption, null);
+      assert.strictEqual(called, false);
+    });
+
+    it('captionImage returns null when the model call throws', async () => {
+      const client = new OllamaVisionClient();
+      client.fetchImageBase64 = async () => 'ZmFrZQ==';
+      client.ollama = { generate: async () => { throw new Error('ollama down'); } };
+
+      const caption = await client.captionImage('https://example.com/a.png');
+      assert.strictEqual(caption, null);
     });
   });
 

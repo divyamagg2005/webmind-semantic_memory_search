@@ -21,5 +21,8 @@
   "cache_size": 1000,
   "batch_size": 10,
   "query_timeout": 60000,
-  "embedding_dimensions": 768
+  "embedding_dimensions": 768,
+  "vision_model": "llava",
+  "image_caption_enabled": true,
+  "max_images_per_page": 6
 }

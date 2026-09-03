@@ -22,6 +22,15 @@ const TEXT_EMBEDDING_DIMS = 768;
 const IMAGE_EMBEDDING_DIMS = 512;
 
 /**
+ * Default Ollama vision model used to caption page images.
+ * Overridable via the `vision_model` config key.
+ */
+const VISION_MODEL = 'llava';
+
+/** Max bytes we will download for a single image before giving up */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
  * Multi-modal score weights
  */
 const TEXT_WEIGHT = 0.6;
@@ -109,6 +118,96 @@ class OllamaEmbeddingClient {
     } catch (error) {
       console.error('Failed to generate batch embeddings:', error);
       throw error;
+    }
+  }
+}
+
+/**
+ * Ollama vision client — turns an image into a short text description
+ * ("caption") that can then be embedded with the normal text embedder.
+ *
+ * This is what makes images "memorised" the same way page text is: the
+ * caption is embedded into the same 768-dim vector space and stored against
+ * the parent memory, so an image match surfaces its page during retrieval.
+ */
+class OllamaVisionClient {
+  /**
+   * @param {Object} options
+   * @param {string} options.model - Ollama vision model (default: VISION_MODEL)
+   */
+  constructor({ model = VISION_MODEL } = {}) {
+    this.ollama = new Ollama();
+    this.model = model || VISION_MODEL;
+  }
+
+  /**
+   * Download an image and return raw base64 (no data: prefix).
+   * Handles data: URLs directly. Returns null on any failure.
+   *
+   * @param {string} url - Image URL or data: URI
+   * @returns {Promise<string|null>} base64 image data
+   */
+  async fetchImageBase64(url) {
+    if (!url || typeof url !== 'string') return null;
+
+    try {
+      if (url.startsWith('data:')) {
+        const comma = url.indexOf(',');
+        if (comma === -1) return null;
+        const meta = url.slice(5, comma);
+        if (!meta.includes('image/')) return null;
+        return meta.includes('base64')
+          ? url.slice(comma + 1)
+          : Buffer.from(decodeURIComponent(url.slice(comma + 1))).toString('base64');
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) return null;
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) return null;
+
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) return null;
+
+      return buf.toString('base64');
+    } catch (error) {
+      console.error(`Failed to fetch image ${url}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Generate a concise description of an image for search indexing.
+   *
+   * @param {string} url - Image URL or data: URI
+   * @param {string} [altText] - Existing alt text, passed to the model as a hint
+   * @returns {Promise<string|null>} caption text, or null if unavailable
+   */
+  async captionImage(url, altText = '') {
+    const b64 = await this.fetchImageBase64(url);
+    if (!b64) return null;
+
+    const hint = altText ? ` The page's alt text for it is: "${altText}".` : '';
+    const prompt =
+      'Describe this image concisely for search indexing. ' +
+      'One or two sentences. Focus on the visible subject, any readable text, ' +
+      'and the image type (photo, diagram, screenshot, chart, logo, illustration).' +
+      hint;
+
+    try {
+      const response = await this.ollama.generate({
+        model: this.model,
+        prompt,
+        images: [b64],
+        stream: false
+      });
+
+      const caption = (response && response.response ? response.response : '').trim();
+      return caption || null;
+    } catch (error) {
+      console.error(`Vision captioning failed for ${url}:`, error.message);
+      return null;
     }
   }
 }
@@ -432,9 +531,11 @@ module.exports = {
   TEXT_EMBEDDING_MODEL,
   TEXT_EMBEDDING_DIMS,
   IMAGE_EMBEDDING_DIMS,
+  VISION_MODEL,
   TEXT_WEIGHT,
   IMAGE_WEIGHT,
   OllamaEmbeddingClient,
+  OllamaVisionClient,
   CLIPEmbeddingClient,
   combineMultiModalScores,
   rankByMultiModalScore,

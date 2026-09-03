@@ -176,6 +176,7 @@
     <div class="pills" id="typePills">
       <button class="p-btn on" data-type="concept">Concepts</button>
       <button class="p-btn on" data-type="memory">Memories</button>
+      <button class="p-btn on" data-type="image">Images</button>
       <button class="p-btn on" data-type="domain">Domains</button>
       <button class="p-btn on" data-type="cluster">Clusters</button>
     </div>
@@ -193,6 +194,7 @@
     <div id="legend">
       <div class="li" data-ltype="concept" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#4299e1"></div> Concept</div>
       <div class="li" data-ltype="memory" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#48bb78"></div> Memory</div>
+      <div class="li" data-ltype="image" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#ec4899"></div> Image</div>
       <div class="li" data-ltype="domain" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#9f7aea"></div> Domain</div>
       <div class="li" data-ltype="cluster" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#ed8936"></div> Cluster</div>
       <div class="li"><div class="ldot" style="background:#f6ad55;border-radius:0;width:12px;height:2px"></div> Session path</div>
@@ -206,6 +208,7 @@
       <div class="sb-title">Overview</div>
       <div class="sb-row"><span class="sb-key">Memories</span><span class="sb-val" id="sb-mem">–</span></div>
       <div class="sb-row"><span class="sb-key">Concepts</span><span class="sb-val" id="sb-con">–</span></div>
+      <div class="sb-row"><span class="sb-key">Images</span><span class="sb-val" id="sb-img">–</span></div>
       <div class="sb-row"><span class="sb-key">Sessions</span><span class="sb-val" id="sb-ses">–</span></div>
       <div class="sb-row"><span class="sb-key">Graph nodes</span><span class="sb-val" id="sb-total">–</span></div>
     </div>
@@ -230,6 +233,7 @@
   <h4 id="dt-title"></h4>
   <div class="dm" id="dt-type"></div>
   <div class="dm" id="dt-stats"></div>
+  <div class="dm" id="dt-extra" style="display:none"></div>
   <a id="dlink" target="_blank" style="display:none"></a>
 </div>
 
@@ -338,12 +342,14 @@ async function loadGraph() {
       `<div class="pill"><b>${data.edges.length}</b> edges</div>`,
       `<div class="pill"><b>${s.concepts||0}</b> concepts</div>`,
       `<div class="pill"><b>${s.memories||0}</b> memories</div>`,
+      `<div class="pill"><b>${s.images||0}</b> images</div>`,
       data.truncated ? `<div class="pill" style="color:#f6ad55">truncated</div>` : ""
     ].join("");
 
     // ── Sidebar stats ─────────────────────────────────────────────────────────
     document.getElementById("sb-mem").textContent = s.memories||0;
     document.getElementById("sb-con").textContent = s.concepts||0;
+    document.getElementById("sb-img").textContent = s.images||0;
     document.getElementById("sb-total").textContent = data.totalNodes||data.nodes.length;
 
     // ── Sidebar domains ───────────────────────────────────────────────────────
@@ -506,6 +512,18 @@ function showDetail(node) {
     parts.push(`Visited: ${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`);
   }
   document.getElementById("dt-stats").textContent = parts.join("  ·  ");
+
+  const extra = document.getElementById("dt-extra");
+  if(node.group === "image"){
+    extra.innerHTML =
+      (node.caption ? `<div style="margin-bottom:6px">${node.caption}</div>` : "") +
+      (node.url ? `<img src="${node.url}" alt="" style="max-width:100%;border-radius:6px;border:1px solid #1e2d40">` : "");
+    extra.style.display = "block";
+  } else {
+    extra.style.display = "none";
+    extra.innerHTML = "";
+  }
+
   const lnk = document.getElementById("dlink");
   if(node.url){ lnk.href=node.url; lnk.textContent=node.url; lnk.style.display="block"; }
   else lnk.style.display="none";

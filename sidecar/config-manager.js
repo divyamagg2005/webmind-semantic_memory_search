@@ -116,6 +116,21 @@ const CONFIG_SCHEMA = {
     allowed: ['llama3.2', 'llama3.1', 'llama3', 'mistral', 'mixtral'],
     description: 'LLM model for memory reconstruction'
   },
+  vision_model: {
+    type: 'string',
+    allowed: ['llava', 'llava:7b', 'llava:13b', 'llama3.2-vision', 'bakllava', 'moondream'],
+    description: 'Ollama vision model used to caption page images'
+  },
+  image_caption_enabled: {
+    type: 'boolean',
+    description: 'When true, page images are captioned and embedded during ingest'
+  },
+  max_images_per_page: {
+    type: 'number',
+    min: 0,
+    max: 20,
+    description: 'Maximum images captioned + embedded per page visit'
+  },
   llm_temperature: {
     type: 'number',
     min: 0,
@@ -179,7 +194,10 @@ const DEFAULT_CONFIG = {
   cache_size: 1000,
   batch_size: 10,
   query_timeout: 15000,
-  embedding_dimensions: 768
+  embedding_dimensions: 768,
+  vision_model: 'llava',
+  image_caption_enabled: true,
+  max_images_per_page: 6
 };
 
 /**

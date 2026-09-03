@@ -19,7 +19,7 @@ const { extractConcepts, calculateCoOccurrence } = require("./concept-extraction
 const { KnowledgeGraph } = require("./knowledge-graph")
 const { calculateEngagementScore, calculateMemoryStrength } = require("./engagement-score")
 const { shouldCreateNewSession, createSession, getCurrentSession, assignMemoryToSession } = require("./session-detection")
-const { OllamaEmbeddingClient, storeImageEmbedding, storeVideoEmbedding } = require("./multimodal-embeddings")
+const { OllamaEmbeddingClient, OllamaVisionClient, storeImageEmbedding, storeVideoEmbedding } = require("./multimodal-embeddings")
 const { hybridRetrieval } = require("./hybrid-retrieval")
 const { reconstructMemory, formatSearchResponse } = require("./memory-reconstruction")
 const { performClustering } = require("./clustering")
@@ -39,6 +39,9 @@ const knowledgeGraph = new KnowledgeGraph()
 
 // Initialize Ollama client for embeddings
 const ollamaClient = new OllamaEmbeddingClient()
+
+// Initialize Ollama vision client for image captioning
+let visionClient = new OllamaVisionClient({ model: getConfig().vision_model })
 
 // Initialize schema on the shared connection
 const initSchema = require("./init-schema")
@@ -449,16 +452,68 @@ app.post("/ingest", async (req, res) => {
     }
 
     // Process images / videos — only on first visit to avoid duplicates
+    let imagesCaptioned = 0
     if (!isRevisit) {
       if (media.images && media.images.length > 0) {
+        const cfg = getConfig()
+        const captionEnabled = cfg.image_caption_enabled !== false
+        const maxImages = Number.isFinite(cfg.max_images_per_page) ? cfg.max_images_per_page : 6
+        let processed = 0
+
         for (const image of media.images) {
-          await new Promise((resolve, reject) => {
+          // Always store the image row (metadata), even if captioning is off or fails
+          const imageRowId = await new Promise((resolve, reject) => {
             db.run(
               `INSERT INTO images (memory_id, url, width, height, alt) VALUES (?, ?, ?, ?, ?)`,
               [memoryId, image.url, image.width, image.height, image.alt || ''],
-              (err) => (err ? reject(err) : resolve())
+              function (err) { if (err) reject(err); else resolve(this.lastID) }
             )
           })
+
+          if (!captionEnabled || processed >= maxImages) continue
+          processed++
+
+          try {
+            // Vision model → caption → text embedding, stored against the parent memory.
+            // This is what makes the image "memorised" the same way page text is.
+            const caption = await visionClient.captionImage(image.url, image.alt || '')
+            if (!caption) continue
+
+            const imgText = [image.alt, caption].filter(Boolean).join('. ')
+            const imgEmbedding = await generateEmbedding(imgText, { queueOnFailure: false })
+            await table.add([{
+              vector: imgEmbedding,
+              text: caption,
+              title: `🖼 ${image.alt || 'image'}`,
+              url: image.url,
+              timestamp,
+              memory_id: memoryId
+            }])
+
+            await new Promise((resolve, reject) => {
+              db.run(
+                `UPDATE images SET caption = ?, embedding_stored = 1 WHERE id = ?`,
+                [caption, imageRowId],
+                (err) => (err ? reject(err) : resolve())
+              )
+            })
+
+            const imgNodeId = knowledgeGraph.addImage({
+              id: `image_${imageRowId}`,
+              imageId: imageRowId,
+              url: image.url,
+              alt: image.alt || '',
+              caption,
+              width: image.width,
+              height: image.height,
+              memoryNodeId,
+              timestamp
+            })
+            knowledgeGraph.linkMemoryToImage(memoryNodeId, imgNodeId)
+            imagesCaptioned++
+          } catch (imgErr) {
+            logError("image_caption_failure", imgErr, { memoryId, imageUrl: image.url })
+          }
         }
       }
       if (media.videos && media.videos.length > 0) {
@@ -482,7 +537,7 @@ app.post("/ingest", async (req, res) => {
     console.log(`   🔗 Associations created: ${associationsCreated}`)
     console.log(`   📊 Session: ${sessionId}`)
     console.log(`   💾 Embedding stored: ${embeddingStored ? 'Yes' : 'No (queued for retry)'}`)
-    console.log(`   🖼️  Images: ${media.images?.length || 0}`)
+    console.log(`   🖼️  Images: ${media.images?.length || 0} (captioned + embedded: ${imagesCaptioned})`)
     console.log(`   🎥 Videos: ${media.videos?.length || 0}\n`)
 
     res.json({

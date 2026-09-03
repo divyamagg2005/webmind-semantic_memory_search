@@ -21,7 +21,10 @@ The extended schema includes five main tables:
 ### 3. **images** - Multi-modal image content
 - Links images to memory entries
 - Stores image dimensions and alt text
-- Supports visual search capabilities
+- `caption` - a description written by an Ollama vision model at ingest time
+- `embedding_stored` - `1` once the caption has been embedded into the vector store
+- The caption embedding is stored against the parent `memory_id`, so an image match
+  surfaces its page in normal search (see **Image Memory** below)
 
 ### 4. **videos** - Multi-modal video content
 - Links videos to memory entries
@@ -136,6 +139,29 @@ Three indexes optimize query performance:
 2. **idx_memories_session** - Efficient session-based queries
 3. **idx_memories_timestamp** - Temporal range queries
 
+## Image Memory
+
+Page images are "memorised" the same way page text is:
+
+1. The content script already sends image URLs + dimensions + alt text with each page.
+2. On the **first visit** to a URL, for up to `max_images_per_page` images, the sidecar
+   fetches the image and asks an Ollama vision model (`vision_model`, default `llava`) for a
+   short description.
+3. That description is embedded with `nomic-embed-text` and added to the LanceDB vector store
+   under the page's `memory_id`. No separate vector table — image matches boost their parent
+   page through the existing hybrid-retrieval join.
+4. The knowledge graph gets an `image` node (with the thumbnail URL and caption) linked to the
+   page's `memory` node. It shows in the graph viewer (`/graph`) under the **Images** toggle.
+
+### Prerequisite
+
+```bash
+ollama pull llava        # or set vision_model to another vision-capable model
+```
+
+If the vision model is missing or `image_caption_enabled` is `false`, ingest still stores image
+metadata rows — it just skips captioning/embedding and the graph image nodes.
+
 ## Configuration
 
 Default configuration values:
@@ -147,7 +173,10 @@ Default configuration values:
   engagement_weight_scroll: 0.3, // Scroll depth weight
   engagement_weight_revisit: 0.3,// Revisit count weight
   session_timeout: 1800,         // 30 minutes in seconds
-  min_cluster_size: 3            // Minimum cluster size
+  min_cluster_size: 3,           // Minimum cluster size
+  vision_model: 'llava',         // Ollama model used to caption page images
+  image_caption_enabled: true,   // Caption + embed images during ingest
+  max_images_per_page: 6         // Cap on images processed per page visit
 }
 ```
 

@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS images (
   width INTEGER,                          -- Image width in pixels
   height INTEGER,                         -- Image height in pixels
   alt TEXT,                               -- Alt text for accessibility
+  caption TEXT,                           -- Vision-model description used for embedding
+  embedding_stored INTEGER DEFAULT 0,     -- 1 once the caption embedding is in the vector store
   FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
 );
 
@@ -111,7 +113,10 @@ INSERT OR IGNORE INTO config (key, value) VALUES
   ('engagement_weight_scroll', '0.3'),         -- Scroll depth weight
   ('engagement_weight_revisit', '0.3'),        -- Revisit count weight
   ('session_timeout', '1800'),                 -- Session timeout in seconds (Requirement 9.1)
-  ('min_cluster_size', '3');                   -- Minimum cluster size (Requirement 21.2)
+  ('min_cluster_size', '3'),                    -- Minimum cluster size (Requirement 21.2)
+  ('vision_model', 'llava'),                    -- Ollama model used to caption page images
+  ('image_caption_enabled', '1'),              -- 1 = caption + embed images during ingest
+  ('max_images_per_page', '6');                 -- Cap on images captioned per page visit
 
 -- ============================================================================
 -- NOTES

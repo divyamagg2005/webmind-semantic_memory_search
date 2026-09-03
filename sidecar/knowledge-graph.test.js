@@ -355,6 +355,66 @@ describe('KnowledgeGraph', () => {
     });
   });
 
+  describe('Image Node Operations', () => {
+    beforeEach(() => {
+      kg.addMemory({ id: 'memory_1', memoryId: '1', timestamp: '2024-01-01T00:00:00Z' });
+    });
+
+    test('should add an image node and link it to its memory', () => {
+      const imgId = kg.addImage({
+        id: 'image_10',
+        imageId: 10,
+        url: 'https://example.com/cat.png',
+        alt: 'a cat',
+        caption: 'A photo of a tabby cat sitting on a windowsill.',
+        width: 640,
+        height: 480,
+        memoryNodeId: 'memory_1',
+        timestamp: '2024-01-01T00:00:00Z'
+      });
+      assert.strictEqual(imgId, 'image_10');
+
+      const linked = kg.linkMemoryToImage('memory_1', 'image_10');
+      assert.strictEqual(linked, true);
+
+      const stats = kg.getStats();
+      assert.strictEqual(stats.images, 1);
+      assert.strictEqual(stats.memoryImageLinks, 1);
+    });
+
+    test('should merge a caption onto an existing image node', () => {
+      kg.addImage({ id: 'image_11', imageId: 11, url: 'u', alt: '', memoryNodeId: 'memory_1' });
+      kg.addImage({ id: 'image_11', imageId: 11, url: 'u', alt: '', caption: 'later caption', memoryNodeId: 'memory_1' });
+
+      const attrs = kg.graph.getNodeAttributes('image_11');
+      assert.strictEqual(attrs.caption, 'later caption');
+      assert.strictEqual(kg.getStats().images, 1);
+    });
+
+    test('linkMemoryToImage returns false for unknown nodes', () => {
+      assert.strictEqual(kg.linkMemoryToImage('memory_1', 'image_missing'), false);
+    });
+
+    test('image nodes appear in visualization data with thumbnail fields', () => {
+      kg.addImage({
+        id: 'image_12', imageId: 12, url: 'https://example.com/x.png',
+        alt: 'diagram', caption: 'An architecture diagram.',
+        memoryNodeId: 'memory_1', timestamp: '2024-01-01T00:00:00Z'
+      });
+      kg.linkMemoryToImage('memory_1', 'image_12');
+
+      const viz = kg.getVisualizationData({ mode: 'full', maxNodes: 50 });
+      const imgNode = viz.nodes.find(n => n.id === 'image_12');
+      assert.ok(imgNode, 'image node should be present in full mode');
+      assert.strictEqual(imgNode.shape, 'image');
+      assert.strictEqual(imgNode.image, 'https://example.com/x.png');
+      assert.strictEqual(imgNode.group, NodeType.IMAGE);
+
+      const link = viz.edges.find(e => e.from === 'memory_1' && e.to === 'image_12');
+      assert.ok(link, 'memory→image edge should be present');
+    });
+  });
+
   describe('Cross-Cluster Links', () => {
     beforeEach(() => {
       kg.addCluster({ id: 'cluster-1', label: 'Web Dev', size: 5, centroid: [0.1, 0.2] });

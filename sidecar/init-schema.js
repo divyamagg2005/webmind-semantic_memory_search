@@ -94,10 +94,24 @@ function initializeSchema(dbOrPath = "./webmind.db") {
           width INTEGER,
           height INTEGER,
           alt TEXT,
+          caption TEXT,
+          embedding_stored INTEGER DEFAULT 0,
           FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
         )
       `, (err) => {
         if (err) reject(err);
+      });
+
+      // Idempotent upgrade: add caption/embedding_stored to pre-existing images tables
+      db.all(`PRAGMA table_info(images)`, (err, cols) => {
+        if (err) return;
+        const names = new Set((cols || []).map((c) => c.name));
+        if (!names.has("caption")) {
+          db.run(`ALTER TABLE images ADD COLUMN caption TEXT`);
+        }
+        if (!names.has("embedding_stored")) {
+          db.run(`ALTER TABLE images ADD COLUMN embedding_stored INTEGER DEFAULT 0`);
+        }
       });
 
       // Create videos table
@@ -132,7 +146,10 @@ function initializeSchema(dbOrPath = "./webmind.db") {
         ['engagement_weight_scroll', '0.3'],
         ['engagement_weight_revisit', '0.3'],
         ['session_timeout', '1800'],
-        ['min_cluster_size', '3']
+        ['min_cluster_size', '3'],
+        ['vision_model', 'llava'],
+        ['image_caption_enabled', '1'],
+        ['max_images_per_page', '6']
       ];
 
       const insertConfig = db.prepare(`

@@ -108,6 +108,12 @@ describe('Multi-Modal Embedding Core Logic', () => {
       assert.strictEqual(out, null);
     });
 
+    it('rejects an SVG data: URL (crashes the vision runner)', async () => {
+      const client = new OllamaVisionClient();
+      const out = await client.fetchImageBase64('data:image/svg+xml;charset=utf8,%3Csvg%2F%3E');
+      assert.strictEqual(out, null);
+    });
+
     it('captionImage returns the trimmed model description', async () => {
       const client = new OllamaVisionClient();
       client.fetchImageBase64 = async () => 'ZmFrZQ==';

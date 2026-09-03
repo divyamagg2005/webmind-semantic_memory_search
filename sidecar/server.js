@@ -459,6 +459,13 @@ app.post("/ingest", async (req, res) => {
         const captionEnabled = cfg.image_caption_enabled !== false
         const maxImages = Number.isFinite(cfg.max_images_per_page) ? cfg.max_images_per_page : 6
         let processed = 0
+        let consecutiveVisionFailures = 0
+
+        // Only bother captioning real remote raster images
+        const isCaptionable = (u) =>
+          typeof u === 'string' &&
+          /^https?:\/\//i.test(u) &&
+          !/\.svgz?(\?|#|$)/i.test(u)
 
         for (const image of media.images) {
           // Always store the image row (metadata), even if captioning is off or fails
@@ -471,13 +478,16 @@ app.post("/ingest", async (req, res) => {
           })
 
           if (!captionEnabled || processed >= maxImages) continue
+          if (!isCaptionable(image.url)) continue
+          if (consecutiveVisionFailures >= 3) continue // vision runner looks unstable; stop hammering it
           processed++
 
           try {
             // Vision model → caption → text embedding, stored against the parent memory.
             // This is what makes the image "memorised" the same way page text is.
             const caption = await visionClient.captionImage(image.url, image.alt || '')
-            if (!caption) continue
+            if (!caption) { consecutiveVisionFailures++; continue }
+            consecutiveVisionFailures = 0
 
             const imgText = [image.alt, caption].filter(Boolean).join('. ')
             const imgEmbedding = await generateEmbedding(imgText, { queueOnFailure: false })
@@ -512,6 +522,7 @@ app.post("/ingest", async (req, res) => {
             knowledgeGraph.linkMemoryToImage(memoryNodeId, imgNodeId)
             imagesCaptioned++
           } catch (imgErr) {
+            consecutiveVisionFailures++
             logError("image_caption_failure", imgErr, { memoryId, imageUrl: image.url })
           }
         }

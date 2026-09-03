@@ -16,6 +16,16 @@ const TEXT_EMBEDDING_MODEL = 'nomic-embed-text';
 const TEXT_EMBEDDING_DIMS = 768;
 
 /**
+ * Context window (in tokens) we ask Ollama to use for text embeddings.
+ * nomic-embed-text supports up to 8192; Ollama otherwise defaults to 2048,
+ * which makes long page text fail with "input length exceeds the context length".
+ */
+const TEXT_EMBEDDING_NUM_CTX = 8192;
+
+/** Hard defensive cap on characters sent to the embedder (~8k tokens). */
+const TEXT_EMBEDDING_CHAR_LIMIT = 30000;
+
+/**
  * Image embedding dimensions (CLIP ViT-B/32, 512 dimensions)
  * Note: Actual CLIP integration would require additional libraries
  */
@@ -29,6 +39,15 @@ const VISION_MODEL = 'llava';
 
 /** Max bytes we will download for a single image before giving up */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Raster formats the vision model can actually decode. SVG and other vector /
+ * non-image types are rejected — feeding them to llava crashes the model runner
+ * ("model runner has unexpectedly stopped").
+ */
+const CAPTIONABLE_IMAGE_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'
+]);
 
 /**
  * Multi-modal score weights
@@ -81,7 +100,9 @@ class OllamaEmbeddingClient {
     try {
       const response = await this.ollama.embed({
         model: TEXT_EMBEDDING_MODEL,
-        input: text
+        input: text.slice(0, TEXT_EMBEDDING_CHAR_LIMIT),
+        truncate: true,
+        options: { num_ctx: TEXT_EMBEDDING_NUM_CTX }
       });
 
       const embedding = response.embeddings[0];
@@ -111,7 +132,9 @@ class OllamaEmbeddingClient {
     try {
       const response = await this.ollama.embed({
         model: TEXT_EMBEDDING_MODEL,
-        input: texts
+        input: texts.map((t) => String(t).slice(0, TEXT_EMBEDDING_CHAR_LIMIT)),
+        truncate: true,
+        options: { num_ctx: TEXT_EMBEDDING_NUM_CTX }
       });
 
       return response.embeddings;
@@ -154,8 +177,9 @@ class OllamaVisionClient {
       if (url.startsWith('data:')) {
         const comma = url.indexOf(',');
         if (comma === -1) return null;
-        const meta = url.slice(5, comma);
-        if (!meta.includes('image/')) return null;
+        const meta = url.slice(5, comma).toLowerCase();
+        const mime = meta.split(';')[0];
+        if (!CAPTIONABLE_IMAGE_TYPES.has(mime)) return null; // e.g. image/svg+xml
         return meta.includes('base64')
           ? url.slice(comma + 1)
           : Buffer.from(decodeURIComponent(url.slice(comma + 1))).toString('base64');
@@ -164,8 +188,8 @@ class OllamaVisionClient {
       const res = await fetch(url);
       if (!res.ok) return null;
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) return null;
+      const contentType = (res.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
+      if (!CAPTIONABLE_IMAGE_TYPES.has(contentType)) return null;
 
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) return null;

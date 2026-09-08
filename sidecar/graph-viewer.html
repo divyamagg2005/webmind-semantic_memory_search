@@ -208,9 +208,10 @@
       <div class="sb-title">Overview</div>
       <div class="sb-row"><span class="sb-key">Memories</span><span class="sb-val" id="sb-mem">–</span></div>
       <div class="sb-row"><span class="sb-key">Concepts</span><span class="sb-val" id="sb-con">–</span></div>
-      <div class="sb-row"><span class="sb-key">Images</span><span class="sb-val" id="sb-img">–</span></div>
+      <div class="sb-row"><span class="sb-key" title="captioned image nodes / total images captured">Images</span><span class="sb-val" id="sb-img">–</span></div>
+      <div class="sb-row"><span class="sb-key">Videos</span><span class="sb-val" id="sb-vid">–</span></div>
       <div class="sb-row"><span class="sb-key">Sessions</span><span class="sb-val" id="sb-ses">–</span></div>
-      <div class="sb-row"><span class="sb-key">Graph nodes</span><span class="sb-val" id="sb-total">–</span></div>
+      <div class="sb-row"><span class="sb-key" title="total nodes · edges in the knowledge graph">Graph size</span><span class="sb-val" id="sb-total">–</span></div>
     </div>
 
     <!-- Top domains -->
@@ -240,6 +241,9 @@
 <script>
 const API = "http://localhost:3001";
 let network = null, visNodes = null, allNodes = [], physicsOn = true;
+// Request coalescing: rapid button clicks each used to fire a fresh /graph/data
+// fetch and pile up behind each other on the single-threaded sidecar.
+let loadSeq = 0, loadAbort = null, loadTimer = null;
 
 const F = { mode: "full", dateFrom: "", dateTo: "", domain: "", minConceptFreq: 1, hiddenTypes: new Set() };
 
@@ -302,10 +306,22 @@ function showOvr(html,spin=true){
 }
 function hideOvr(){ document.getElementById("ovr").classList.add("h") }
 
-async function loadGraph() {
+// Debounced entry point — collapses a burst of clicks into one fetch.
+function loadGraph() {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(doLoadGraph, 120);
+}
+
+async function doLoadGraph() {
   if(typeof vis==="undefined"){
     showOvr(`<h3>vis-network not loaded</h3><p>Check internet — library loads from CDN.</p>`,false); return;
   }
+  const seq = ++loadSeq;
+  if(loadAbort) loadAbort.abort();
+  loadAbort = new AbortController();
+  const signal = loadAbort.signal;
+  const stale = () => seq !== loadSeq;
+
   showOvr("Fetching graph data…"); setProgress(15);
 
   const p = new URLSearchParams({ limit:"400", mode:F.mode, minConceptFreq:F.minConceptFreq });
@@ -315,10 +331,12 @@ async function loadGraph() {
 
   try {
     const [gRes, sRes] = await Promise.all([
-      fetch(`${API}/graph/data?${p}`),
-      fetch(`${API}/graph/sessions?limit=10`)
+      fetch(`${API}/graph/data?${p}`, { signal }),
+      fetch(`${API}/graph/sessions?limit=10`, { signal })
     ]);
+    if(stale()) return;
     const data = await gRes.json();
+    if(stale()) return;
     if(!data.success) throw new Error(data.error||"API error");
 
     setProgress(45);
@@ -337,20 +355,32 @@ async function loadGraph() {
 
     // ── Stats pills ───────────────────────────────────────────────────────────
     const s = data.stats||{};
+    const nodesPill = data.truncated && data.eligibleNodes
+      ? `<div class="pill"><b>${data.nodes.length}</b> / ${data.eligibleNodes} nodes shown</div>`
+      : `<div class="pill"><b>${data.nodes.length}</b> nodes</div>`;
+    const edgesPill = data.edgesTruncated
+      ? `<div class="pill"><b>${data.edges.length}</b> edges (capped)</div>`
+      : `<div class="pill"><b>${data.edges.length}</b> edges</div>`;
     document.getElementById("stats").innerHTML = [
-      `<div class="pill"><b>${data.nodes.length}</b> nodes</div>`,
-      `<div class="pill"><b>${data.edges.length}</b> edges</div>`,
+      nodesPill,
+      edgesPill,
       `<div class="pill"><b>${s.concepts||0}</b> concepts</div>`,
       `<div class="pill"><b>${s.memories||0}</b> memories</div>`,
       `<div class="pill"><b>${s.images||0}</b> images</div>`,
-      data.truncated ? `<div class="pill" style="color:#f6ad55">truncated</div>` : ""
+      `<div class="pill" title="Total nodes/edges in the knowledge graph"><b>${s.totalNodes||0}</b>·<b>${s.totalEdges||0}</b> graph</div>`,
+      data.truncated ? `<div class="pill" style="color:#f6ad55" title="The view shows only the most-connected subset">subset view</div>` : ""
     ].join("");
 
-    // ── Sidebar stats ─────────────────────────────────────────────────────────
-    document.getElementById("sb-mem").textContent = s.memories||0;
-    document.getElementById("sb-con").textContent = s.concepts||0;
-    document.getElementById("sb-img").textContent = s.images||0;
-    document.getElementById("sb-total").textContent = data.totalNodes||data.nodes.length;
+    // ── Sidebar stats (SQLite ground truth; graph subset shown alongside) ──────
+    const dc = data.dbCounts || {};
+    document.getElementById("sb-mem").textContent =
+      dc.memories != null ? dc.memories : (s.memories || 0);
+    document.getElementById("sb-con").textContent = s.concepts || 0;
+    document.getElementById("sb-img").textContent =
+      dc.images != null ? `${s.images || 0} / ${dc.images}` : (s.images || 0);
+    document.getElementById("sb-vid").textContent = dc.videos != null ? dc.videos : "–";
+    document.getElementById("sb-total").textContent =
+      `${data.totalNodes || data.nodes.length} · ${(s.totalEdges || 0)}`;
 
     // ── Sidebar domains ───────────────────────────────────────────────────────
     const domList = document.getElementById("domainList");
@@ -374,7 +404,8 @@ async function loadGraph() {
     sesList.innerHTML = "";
     try {
       const sData = await sRes.json();
-      document.getElementById("sb-ses").textContent = sData.sessions?.length||0;
+      document.getElementById("sb-ses").textContent =
+        dc.sessions != null ? dc.sessions : (sData.sessions?.length || 0);
       (sData.sessions||[]).slice(0,6).forEach(ses => {
         const d  = new Date(ses.startTime);
         const ts = d.toLocaleDateString()+" "+d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
@@ -387,6 +418,8 @@ async function loadGraph() {
       });
     } catch {}
 
+    if(stale()) return;
+
     if(data.nodes.length===0) {
       setProgress(100); setTimeout(()=>setProgress(0),600);
       showOvr(`<h3>No data matches these filters</h3><p>Try widening the time range or clearing the site filter.</p>`,false);
@@ -396,6 +429,7 @@ async function loadGraph() {
     hideOvr();
     renderNetwork(data);
   } catch(err) {
+    if(err.name === "AbortError" || stale()) return; // superseded by a newer click
     setProgress(0);
     document.getElementById("stats").innerHTML=`<div class="pill" style="color:#fc8181">Error: ${err.message}</div>`;
     showOvr(`<h3>Could not load graph</h3><p>Is the sidecar running on port 3001?</p>`,false);

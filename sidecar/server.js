@@ -80,25 +80,88 @@ async function initialize() {
   await initializeVectorDB()
   await knowledgeGraph.initialize()
 
-  // Purge graph nodes whose SQLite records no longer exist (prevents stale state after DB wipe)
+  // Reconcile the graph with SQLite in both directions so the /graph metrics
+  // (memory count, domains, journey) reflect what is actually stored.
   try {
-    const dbIds = await new Promise((resolve, reject) =>
-      db.all("SELECT id FROM memories", [], (err, rows) => err ? reject(err) : resolve(rows.map(r => r.id)))
+    const dbRows = await new Promise((resolve, reject) =>
+      db.all(
+        "SELECT id, url, timestamp, session_id FROM memories",
+        [],
+        (err, rows) => (err ? reject(err) : resolve(rows))
+      )
     )
-    const dbIdSet = new Set(dbIds.map(String))
+    const dbIdSet = new Set(dbRows.map(r => String(r.id)))
+
+    // (a) drop graph memory nodes whose SQLite row is gone (e.g. after a DB wipe)
     const staleNodes = []
+    const graphMemIds = new Set()
     knowledgeGraph.graph.forEachNode((nodeId, attrs) => {
-      if (attrs.nodeType === 'memory' && attrs.memoryId && !dbIdSet.has(String(attrs.memoryId))) {
-        staleNodes.push(nodeId)
-      }
+      if (attrs.nodeType !== 'memory' || !attrs.memoryId) return
+      graphMemIds.add(String(attrs.memoryId))
+      if (!dbIdSet.has(String(attrs.memoryId))) staleNodes.push(nodeId)
     })
     for (const nodeId of staleNodes) {
       try { knowledgeGraph.graph.dropNode(nodeId) } catch {}
     }
-    if (staleNodes.length > 0) {
-      console.log(`Purged ${staleNodes.length} stale memory nodes from graph`)
+
+    // (b) add graph memory nodes for SQLite rows that have none (e.g. after a
+    //     graph-file corruption/rebuild). Concept links aren't reconstructed,
+    //     but the node + domain hub make the counts and graph honest again.
+    let backfilled = 0
+    for (const r of dbRows) {
+      if (graphMemIds.has(String(r.id))) continue
+      let domain = null
+      try { domain = new URL(r.url).hostname } catch {}
+      const memNodeId = `memory_${r.id}`
+      knowledgeGraph.addMemory({
+        id: memNodeId,
+        memoryId: String(r.id),
+        timestamp: r.timestamp,
+        sessionId: r.session_id || null,
+        domain
+      })
+      if (domain) {
+        const domainNodeId = knowledgeGraph.addDomain(domain)
+        knowledgeGraph.linkMemoryToDomain(memNodeId, domainNodeId)
+      }
+      backfilled++
+    }
+
+    if (staleNodes.length > 0 || backfilled > 0) {
+      console.log(
+        `Graph reconciliation: purged ${staleNodes.length} stale, backfilled ${backfilled} missing memory nodes`
+      )
       knowledgeGraph.isDirty = true
       await knowledgeGraph.save()
+    }
+
+    // Backfill sessions rows for memories that reference a session_id with no
+    // row (older data written before /ingest created session rows). Existing
+    // rows are left untouched.
+    const sessGroups = await new Promise((resolve, reject) =>
+      db.all(
+        `SELECT session_id AS id, MIN(timestamp) AS start_time, MAX(timestamp) AS end_time, COUNT(*) AS page_count
+           FROM memories WHERE session_id IS NOT NULL AND session_id != ''
+           GROUP BY session_id`,
+        [],
+        (err, rows) => (err ? reject(err) : resolve(rows))
+      )
+    )
+    let sessBackfilled = 0
+    for (const g of sessGroups) {
+      const changed = await new Promise((resolve, reject) =>
+        db.run(
+          `INSERT INTO sessions (id, start_time, end_time, page_count, dominant_concepts, label)
+           VALUES (?, ?, ?, ?, '[]', NULL)
+           ON CONFLICT(id) DO NOTHING`,
+          [g.id, g.start_time, g.end_time, g.page_count],
+          function (err) { if (err) reject(err); else resolve(this.changes) }
+        )
+      )
+      sessBackfilled += changed
+    }
+    if (sessBackfilled > 0) {
+      console.log(`Graph reconciliation: backfilled ${sessBackfilled} sessions rows`)
     }
   } catch (err) {
     console.error("Graph reconciliation failed:", err.message)
@@ -274,6 +337,22 @@ app.post("/ingest", async (req, res) => {
       }
     }
 
+    // Ensure a real sessions row exists for this sessionId. The content script
+    // always supplies context.sessionId, so the branch above (which only runs
+    // when sessionId is absent) never created one — leaving the sessions table
+    // empty and the graph's "Sessions" metric / Journey view broken.
+    if (sessionId) {
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO sessions (id, start_time, end_time, page_count, dominant_concepts, label)
+           VALUES (?, ?, ?, 0, '[]', NULL)
+           ON CONFLICT(id) DO NOTHING`,
+          [sessionId, timestamp, timestamp],
+          (err) => (err ? reject(err) : resolve())
+        )
+      })
+    }
+
     // Upsert: one memory row per URL, update on revisit
     const existingMemory = await new Promise((resolve, reject) => {
       db.get(
@@ -353,11 +432,12 @@ app.post("/ingest", async (req, res) => {
       })
     }
 
-    // Update session page count
+    // Update session: bump page_count only for a genuinely new page, always
+    // advance end_time so session duration stays correct on revisits.
     await new Promise((resolve, reject) => {
       db.run(
-        `UPDATE sessions SET page_count = page_count + 1, end_time = ? WHERE id = ?`,
-        [timestamp, sessionId],
+        `UPDATE sessions SET page_count = page_count + ?, end_time = ? WHERE id = ?`,
+        [isRevisit ? 0 : 1, timestamp, sessionId],
         (err) => {
           if (err) reject(err)
           else resolve()
@@ -1432,6 +1512,13 @@ app.get("/graph", (req, res) => {
   res.sendFile(htmlPath)
 })
 
+// Tiny TTL cache for /graph/data. The payload only changes when the graph
+// changes, so rapid UI clicks (view tabs, time presets, site filter) can reuse
+// a recent build instead of rescanning the graph + re-querying SQLite while
+// /ingest is competing for the single Node thread.
+const graphDataCache = new Map() // key -> { ts, body }
+const GRAPH_CACHE_TTL_MS = 3000
+
 app.get("/graph/data", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 400, 1000)
@@ -1441,6 +1528,17 @@ app.get("/graph/data", async (req, res) => {
     const dateFrom = req.query.dateFrom || null
     const dateTo   = req.query.dateTo   || null
     const domain   = req.query.domain   || null
+
+    // Cache key: query params + a cheap graph fingerprint (order/size/dirty)
+    const g = knowledgeGraph.graph
+    const cacheKey = JSON.stringify([
+      limit, includeMemories, mode, minConceptFreq, dateFrom, dateTo, domain,
+      g.order, g.size, knowledgeGraph.isDirty
+    ])
+    const cached = graphDataCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < GRAPH_CACHE_TTL_MS) {
+      return res.json(cached.body)
+    }
 
     // Build memory ID filter when date/domain params present
     let memoryFilter = null
@@ -1482,16 +1580,39 @@ app.get("/graph/data", async (req, res) => {
     })
     const stats = knowledgeGraph.getStats()
 
-    // Enrich memory nodes with full SQLite data
-    for (const node of viz.nodes) {
-      if (node.group !== "memory" || !node.memoryId) continue
-      const row = await new Promise((resolve, reject) =>
-        db.get(
-          "SELECT title, url, engagement_score, session_id, sequence_number, timestamp FROM memories WHERE id = ?",
-          [parseInt(node.memoryId, 10)], (err, r) => (err ? reject(err) : resolve(r)))
+    // Ground-truth counts straight from SQLite (the graph only holds a subset —
+    // e.g. only captioned images become image nodes).
+    const dbCounts = await new Promise((resolve, reject) =>
+      db.get(
+        `SELECT
+           (SELECT COUNT(*) FROM memories) AS memories,
+           (SELECT COUNT(*) FROM images) AS images,
+           (SELECT COUNT(*) FROM images WHERE embedding_stored = 1) AS imagesEmbedded,
+           (SELECT COUNT(*) FROM videos) AS videos,
+           (SELECT COUNT(*) FROM sessions) AS sessions`,
+        (err, r) => (err ? reject(err) : resolve(r || {}))
       )
-      if (row) {
-        const short = row.title.length > 24 ? row.title.slice(0, 22) + "…" : row.title
+    )
+
+    // Enrich memory nodes with full SQLite data — one batched query instead of
+    // one round-trip per node (which serialised badly against concurrent /ingest).
+    const memNodes = viz.nodes.filter((n) => n.group === "memory" && n.memoryId)
+    if (memNodes.length > 0) {
+      const ids = memNodes.map((n) => parseInt(n.memoryId, 10)).filter(Number.isFinite)
+      const placeholders = ids.map(() => "?").join(",")
+      const rows = await new Promise((resolve, reject) =>
+        db.all(
+          `SELECT id, title, url, engagement_score, session_id, sequence_number, timestamp
+             FROM memories WHERE id IN (${placeholders})`,
+          ids,
+          (err, r) => (err ? reject(err) : resolve(r || []))
+        )
+      )
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      for (const node of memNodes) {
+        const row = byId.get(parseInt(node.memoryId, 10))
+        if (!row) continue
+        const short = (row.title || "").length > 24 ? row.title.slice(0, 22) + "…" : (row.title || "")
         node.label           = short
         node.title           = `${row.title}\n${row.url}\nEngagement: ${((row.engagement_score || 0) * 100).toFixed(0)}%`
         node.url             = row.url
@@ -1504,7 +1625,13 @@ app.get("/graph/data", async (req, res) => {
       }
     }
 
-    res.json({ success: true, stats, domains, ...viz })
+    const body = { success: true, stats, dbCounts, domains, ...viz }
+    graphDataCache.set(cacheKey, { ts: Date.now(), body })
+    if (graphDataCache.size > 40) {
+      // drop the oldest entries — this map never needs to be large
+      for (const k of [...graphDataCache.keys()].slice(0, 20)) graphDataCache.delete(k)
+    }
+    res.json(body)
   } catch (err) {
     logError("graph_data_failure", err)
     res.status(500).json({ success: false, error: err.message })

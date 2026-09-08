@@ -1128,9 +1128,10 @@ class KnowledgeGraph {
         ...memories.slice(0, memBudget)
       ];
     } else { // full
+      const imgReserve = imagesShown ? Math.ceil(maxNodes * 0.1) : 0;
       const memBudget = Math.min(memories.length, Math.ceil(maxNodes * 0.2));
       const clsBudget = Math.min(clusters.length, Math.ceil(maxNodes * 0.05));
-      const cncBudget = maxNodes - memBudget - clsBudget;
+      const cncBudget = maxNodes - memBudget - clsBudget - imgReserve;
       selected = [
         ...concepts.slice(0, cncBudget),
         ...memories.slice(0, memBudget),
@@ -1138,10 +1139,16 @@ class KnowledgeGraph {
       ];
     }
 
-    let truncated  = false; // frontend shows real counts in stats
+    // How many nodes were eligible to render before the per-mode budget cut —
+    // used to report an honest `truncated` flag to the viewer.
+    const eligibleNodes =
+      concepts.length + memories.length + clusters.length + domains.length +
+      journeyConcepts.length + (imagesShown ? images.length : 0);
+
     let selectedIds = new Set(selected.map(n => n.id));
 
     // Attach image nodes to memory nodes that made the cut (full / journey only).
+    // The budget was reserved above so this stays within maxNodes.
     if (imagesShown && images.length > 0) {
       const imgBudget = Math.max(0, Math.ceil(maxNodes * 0.1));
       const attachable = images
@@ -1264,13 +1271,24 @@ class KnowledgeGraph {
     });
 
     const MAX_EDGES = mode === "journey" ? 600 : mode === "domains" ? 500 : 800;
+    let edgesTruncated = false;
     if (edges.length > MAX_EDGES) {
       edges.sort((a, b) => b._p - a._p || b._s - a._s);
       edges.splice(MAX_EDGES);
+      edgesTruncated = true;
     }
     edges.forEach(e => { delete e._s; delete e._p; });
 
-    return { nodes, edges, truncated, totalNodes: allNodes.size };
+    const truncated = nodes.length < eligibleNodes || edgesTruncated;
+
+    return {
+      nodes,
+      edges,
+      truncated,
+      eligibleNodes,
+      edgesTruncated,
+      totalNodes: allNodes.size
+    };
   }
 }
 

@@ -276,27 +276,68 @@ async function getPreviousUrl(): Promise<string | null> {
 // MEDIA CONTENT EXTRACTION (Requirements 12.1-12.2, 13.1-13.2)
 // ============================================================================
 
+/** Obvious non-content assets (tracking pixels, spacers) matched by URL. */
+const NON_CONTENT_IMAGE_RE = /(?:1x1|pixel|spacer|blank|tracking|beacon|\/ads?\/)/i
+
+/**
+ * Resolve the best real URL for an <img>, accounting for lazy-loading.
+ * Prefers currentSrc (resolves srcset) then src, then common lazy attributes.
+ */
+function bestImageUrl(img: HTMLImageElement): string {
+  const pickFromSet = (val: string | null): string => {
+    if (!val) return ""
+    const last = val.split(",").pop()?.trim().split(/\s+/)[0]
+    return last || ""
+  }
+  const lazy =
+    img.getAttribute("data-src") ||
+    img.getAttribute("data-original") ||
+    img.getAttribute("data-lazy-src") ||
+    pickFromSet(img.getAttribute("data-srcset")) ||
+    pickFromSet(img.getAttribute("srcset"))
+  return (img.currentSrc || img.src || lazy || "").trim()
+}
+
 /**
  * Extract image data from page
- * Requirement 12.1: Extract image URLs with dimensions (filter >= 200x200)
+ * Requirement 12.1: Extract meaningful content images with dimensions.
+ * Handles lazy-loaded images (natural size 0), de-duplicates by URL, and
+ * drops tracking pixels / spacers / tiny UI icons without over-filtering
+ * legitimate article images.
  */
 function extractImages(): ImageData[] {
   const images: ImageData[] = []
-  const imgElements = document.querySelectorAll('img')
-  
-  imgElements.forEach((img) => {
-    // Filter images that are at least 200x200
-    if (img.naturalWidth >= 200 && img.naturalHeight >= 200) {
-      images.push({
-        url: img.src,
-        width: img.naturalWidth,
-        height: img.naturalHeight,
-        alt: img.alt || ''
-      })
-    }
+  const seen = new Set<string>()
+
+  document.querySelectorAll("img").forEach((img) => {
+    const url = bestImageUrl(img)
+    if (!url) return
+    if (!/^https?:\/\//i.test(url) && !/^data:image\//i.test(url)) return
+    if (NON_CONTENT_IMAGE_RE.test(url)) return
+    if (seen.has(url)) return
+
+    // Prefer decoded natural size; fall back to layout box / width|height
+    // attributes so lazy-loaded images (naturalWidth === 0) still count.
+    const rect = img.getBoundingClientRect()
+    const width =
+      img.naturalWidth ||
+      parseInt(img.getAttribute("width") || "", 10) ||
+      Math.round(rect.width)
+    const height =
+      img.naturalHeight ||
+      parseInt(img.getAttribute("height") || "", 10) ||
+      Math.round(rect.height)
+
+    // Known-small images are decorative — skip. Unknown-size images pass
+    // through (server still gates captioning + caps per page).
+    if (width && height && (width < 200 || height < 200)) return
+    if (!width && !height) return
+
+    seen.add(url)
+    images.push({ url, width: width || 0, height: height || 0, alt: img.alt || "" })
   })
-  
-  return images
+
+  return images.slice(0, 25)
 }
 
 /**

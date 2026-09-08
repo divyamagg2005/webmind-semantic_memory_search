@@ -113,8 +113,13 @@ const CONFIG_SCHEMA = {
   },
   llm_model: {
     type: 'string',
-    allowed: ['llama3.2', 'llama3.1', 'llama3', 'mistral', 'mixtral'],
-    description: 'LLM model for memory reconstruction'
+    allowed: [
+      'llama3.2', 'llama3.2:1b', 'llama3.2:3b',
+      'llama3.1', 'llama3.1:8b',
+      'llama3', 'llama3:8b',
+      'mistral', 'mixtral'
+    ],
+    description: 'LLM model for memory reconstruction / cluster labels (local Ollama tag; cloud uses AWS_LLAMA_MODEL)'
   },
   vision_model: {
     type: 'string',
@@ -124,6 +129,14 @@ const CONFIG_SCHEMA = {
   image_caption_enabled: {
     type: 'boolean',
     description: 'When true, page images are captioned and embedded during ingest'
+  },
+  cloud_llama_enabled: {
+    type: 'boolean',
+    description: 'Route LLaMA text inference to the AWS endpoint (LLAMA_API_URL) instead of local Ollama'
+  },
+  cloud_llava_enabled: {
+    type: 'boolean',
+    description: 'Route LLaVA image captioning to the AWS endpoint (LLAVA_API_URL) instead of local Ollama'
   },
   max_images_per_page: {
     type: 'number',
@@ -197,7 +210,9 @@ const DEFAULT_CONFIG = {
   embedding_dimensions: 768,
   vision_model: 'llava',
   image_caption_enabled: true,
-  max_images_per_page: 6
+  max_images_per_page: 6,
+  cloud_llama_enabled: false,
+  cloud_llava_enabled: false
 };
 
 /**
@@ -322,8 +337,15 @@ function validateConfigValue(key, value) {
         error: `${key} must be one of: ${schema.allowed.join(', ')}`
       };
     }
+  } else if (schema.type === 'boolean') {
+    if (typeof value !== 'boolean') {
+      return {
+        valid: false,
+        error: `${key} must be a boolean`
+      };
+    }
   }
-  
+
   return { valid: true };
 }
 

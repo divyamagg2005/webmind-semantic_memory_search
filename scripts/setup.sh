@@ -4,24 +4,31 @@
 #
 # Installs and verifies every prerequisite, then installs project dependencies:
 #   - Git, Node.js LTS, Python 3          (via Homebrew)
-#   - Ollama + models: nomic-embed-text, llava, llama3.2:3b
+#   - Ollama + models (local mode: nomic-embed-text, llava, llama3.2:3b;
+#                      cloud mode: nomic-embed-text only)
 #   - Root extension dependencies         (yarn or npm)
 #   - sidecar/ Node dependencies          (npm)
 #   - sidecar/ Python dependencies        (pip, optional - clustering only)
 #   - Initializes sidecar/webmind.db
 #
+# This script does NOT deploy anything to AWS. Cloud mode only records the
+# endpoint URLs + shared API key you already have into a local .env file.
+#
 # Usage:
 #   chmod +x scripts/setup.sh
-#   ./scripts/setup.sh [--skip-models] [--skip-python]
+#   ./scripts/setup.sh [--local | --cloud] [--skip-models] [--skip-python]
 #
 set -euo pipefail
 
 SKIP_MODELS=0
 SKIP_PYTHON=0
+MODE=""
 for arg in "$@"; do
   case "$arg" in
     --skip-models) SKIP_MODELS=1 ;;
     --skip-python) SKIP_PYTHON=1 ;;
+    --local) MODE="local" ;;
+    --cloud) MODE="cloud" ;;
     *) echo "unknown flag: $arg"; exit 1 ;;
   esac
 done
@@ -29,8 +36,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SIDECAR="$REPO_ROOT/sidecar"
-
-OLLAMA_MODELS=(nomic-embed-text llava llama3.2:3b)
+ENV_FILE="$REPO_ROOT/.env"
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -42,7 +48,66 @@ warn() { printf '%s    %s%s\n' "$c_yellow" "$1" "$c_off"; }
 die()  { printf '%s!!! %s%s\n' "$c_red"   "$1" "$c_off"; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Set KEY=VALUE in $ENV_FILE. Never overwrites a key that already has a
+# non-empty value (so re-running setup won't clobber your secrets).
+upsert_env() {
+  local key="$1" value="$2"
+  [ -f "$ENV_FILE" ] || : > "$ENV_FILE"
+  local existing
+  existing="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  if [ -n "$existing" ]; then
+    warn "$key already set in .env - keeping existing value"
+    return
+  fi
+  # remove any empty "KEY=" line, then append
+  if grep -qE "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    grep -vE "^${key}=" "$ENV_FILE" > "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"
+  fi
+  printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  ok "$key written to .env"
+}
+
 [ "$(uname -s)" = "Darwin" ] || die "This script targets macOS. On Linux install node, python3, git and ollama with your package manager, then run the dependency steps by hand."
+
+# ---------------------------------------------------------------------------
+# 0. inference mode
+# ---------------------------------------------------------------------------
+if [ -z "$MODE" ]; then
+  if [ -t 0 ]; then
+    echo
+    echo "How would you like to run AI inference?"
+    echo "  1) Local only  - LLaMA + LLaVA + Nomic all via local Ollama"
+    echo "  2) Cloud       - LLaMA + LLaVA via your AWS endpoints, Nomic stays local"
+    printf "Choose [1/2] (default 1): "
+    read -r choice || choice=""
+    case "$choice" in
+      2) MODE="cloud" ;;
+      *) MODE="local" ;;
+    esac
+  else
+    MODE="local"
+  fi
+fi
+info "Inference mode: $MODE"
+
+if [ "$MODE" = "cloud" ]; then
+  OLLAMA_MODELS=(nomic-embed-text)
+  info "Configuring AWS endpoints in $ENV_FILE (nothing is deployed to AWS)"
+  [ -f "$ENV_FILE" ] || { [ -f "$REPO_ROOT/.env.example" ] && cp "$REPO_ROOT/.env.example" "$ENV_FILE"; }
+  if [ -t 0 ]; then
+    printf "  AWS_API_KEY (shared, leave blank to keep current): "; read -r v_key || v_key=""
+    printf "  LLAMA_API_URL: "; read -r v_llama || v_llama=""
+    printf "  LLAVA_API_URL: "; read -r v_llava || v_llava=""
+    [ -n "$v_key" ]   && upsert_env AWS_API_KEY   "$v_key"
+    [ -n "$v_llama" ] && upsert_env LLAMA_API_URL "$v_llama"
+    [ -n "$v_llava" ] && upsert_env LLAVA_API_URL "$v_llava"
+  else
+    warn "non-interactive: edit $ENV_FILE and set AWS_API_KEY / LLAMA_API_URL / LLAVA_API_URL"
+  fi
+  warn "Enable the 'Cloud LLaMA' / 'Cloud LLaVA' switches in the extension settings to use them."
+else
+  OLLAMA_MODELS=(nomic-embed-text llava llama3.2:3b)
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Homebrew + system tools

@@ -24,5 +24,7 @@
   "embedding_dimensions": 768,
   "vision_model": "llava",
   "image_caption_enabled": true,
-  "max_images_per_page": 6
+  "max_images_per_page": 6,
+  "cloud_llama_enabled": true,
+  "cloud_llava_enabled": true
 }

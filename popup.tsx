@@ -77,7 +77,15 @@ interface ConfigValues {
   session_timeout?: number
   min_cluster_size?: number
   query_timeout?: number
-  [key: string]: number | undefined
+  cloud_llama_enabled?: boolean
+  cloud_llava_enabled?: boolean
+  [key: string]: number | boolean | undefined
+}
+
+interface ProviderStatus {
+  llama: { cloudEnabled: boolean; cloudConfigured: boolean; activeProvider: string }
+  llava: { cloudEnabled: boolean; cloudConfigured: boolean; activeProvider: string }
+  embeddings: { activeProvider: string }
 }
 
 const styles = {
@@ -174,6 +182,7 @@ function IndexPopup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [ollamaAvailable, setOllamaAvailable] = useState<boolean | null>(null)
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
 
   const [clusters, setClusters] = useState<Cluster[]>([])
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null)
@@ -190,7 +199,10 @@ function IndexPopup() {
   useEffect(() => {
     fetch(`${API}/health`)
       .then((r) => r.json())
-      .then((d) => setOllamaAvailable(d.ollamaAvailable ?? null))
+      .then((d) => {
+        setOllamaAvailable(d.ollamaAvailable ?? null)
+        setProviderStatus(d.provider ?? null)
+      })
       .catch(() => setOllamaAvailable(false))
   }, [])
 
@@ -305,8 +317,8 @@ function IndexPopup() {
     if (d.session_timeout !== undefined && (d.session_timeout < 300 || d.session_timeout > 7200)) {
       errs.push("Session timeout must be between 300 and 7200 seconds")
     }
-    if (d.query_timeout !== undefined && (d.query_timeout < 1000 || d.query_timeout > 30000)) {
-      errs.push("Query timeout must be between 1000 and 30000 ms")
+    if (d.query_timeout !== undefined && (d.query_timeout < 5000 || d.query_timeout > 60000)) {
+      errs.push("Query timeout must be between 5000 and 60000 ms")
     }
     const weights = [
       d.engagement_weight_dwell,
@@ -353,6 +365,11 @@ function IndexPopup() {
       setConfig(data.config)
       setConfigDraft(data.config)
       setConfigErrors([])
+      // Refresh provider status so the Local/AWS labels reflect the save
+      fetch(`${API}/health`)
+        .then((r) => r.json())
+        .then((d) => setProviderStatus(d.provider ?? null))
+        .catch(() => {})
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Save failed")
     } finally {
@@ -690,7 +707,7 @@ function IndexPopup() {
               <input
                 type="number"
                 step={step}
-                value={configDraft[key] ?? ""}
+                value={(configDraft[key] as number | undefined) ?? ""}
                 onChange={(e) =>
                   setConfigDraft({ ...configDraft, [key]: parseFloat(e.target.value) })
                 }
@@ -698,6 +715,54 @@ function IndexPopup() {
               />
             </div>
           ))}
+
+          <div style={{ borderTop: "1px solid #dee2e6", margin: "6px 0 12px", paddingTop: 12 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>
+              Inference providers
+            </div>
+            <p style={{ fontSize: 11, color: "#666", margin: "0 0 10px" }}>
+              Nomic text embeddings always run locally. LLaMA and LLaVA can each be
+              switched to the configured AWS endpoint independently.
+            </p>
+
+            {[
+              {
+                key: "cloud_llama_enabled" as const,
+                label: "Cloud LLaMA",
+                sub: "Text synthesis + cluster labels via AWS",
+                status: providerStatus?.llama
+              },
+              {
+                key: "cloud_llava_enabled" as const,
+                label: "Cloud LLaVA",
+                sub: "Image captioning via AWS",
+                status: providerStatus?.llava
+              }
+            ].map(({ key, label, sub, status }) => (
+              <div key={key} style={{ marginBottom: 10 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={configDraft[key] === true}
+                    onChange={(e) =>
+                      setConfigDraft({ ...configDraft, [key]: e.target.checked })
+                    }
+                  />
+                  <span style={{ fontWeight: 500, fontSize: 12 }}>{label}</span>
+                  <span style={{ fontSize: 10, color: "#888" }}>
+                    {(configDraft[key] === true ? "AWS" : "Local Ollama")}
+                  </span>
+                </label>
+                <div style={{ fontSize: 10, color: "#999", marginLeft: 24 }}>{sub}</div>
+                {configDraft[key] === true && status && !status.cloudConfigured && (
+                  <div style={{ ...styles.warning, marginTop: 4, marginLeft: 24 }}>
+                    AWS config missing on the sidecar (.env). This provider will fail
+                    until AWS_API_KEY and the endpoint URL are set.
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
           {configErrors.map((e, i) => (
             <div key={i} style={styles.error}>

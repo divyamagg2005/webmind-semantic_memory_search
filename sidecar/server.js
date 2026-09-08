@@ -1,3 +1,5 @@
+require("./load-env")
+
 const express = require("express")
 const cors = require("cors")
 const path = require("path")
@@ -24,6 +26,7 @@ const { hybridRetrieval } = require("./hybrid-retrieval")
 const { reconstructMemory, formatSearchResponse } = require("./memory-reconstruction")
 const { performClustering } = require("./clustering")
 const { getConfig, updateConfig, resetConfig, getSchema } = require("./config-manager")
+const modelProvider = require("./model-provider")
 const { cacheManager } = require("./cache")
 const { performanceMonitor, IndexOptimizer } = require("./performance")
 
@@ -40,8 +43,8 @@ const knowledgeGraph = new KnowledgeGraph()
 // Initialize Ollama client for embeddings
 const ollamaClient = new OllamaEmbeddingClient()
 
-// Initialize Ollama vision client for image captioning
-let visionClient = new OllamaVisionClient({ model: getConfig().vision_model })
+// Image captioning is routed through the model provider (local Ollama LLaVA or
+// the AWS LLaVA endpoint, per the cloud_llava_enabled switch).
 
 // Initialize schema on the shared connection
 const initSchema = require("./init-schema")
@@ -467,27 +470,55 @@ app.post("/ingest", async (req, res) => {
           /^https?:\/\//i.test(u) &&
           !/\.svgz?(\?|#|$)/i.test(u)
 
+        const seenUrls = new Set()
+
         for (const image of media.images) {
+          const imgUrl = typeof image.url === 'string' ? image.url : ''
+
+          // Skip duplicate image URLs within the same page capture
+          if (imgUrl && seenUrls.has(imgUrl)) continue
+          if (imgUrl) seenUrls.add(imgUrl)
+
           // Always store the image row (metadata), even if captioning is off or fails
           const imageRowId = await new Promise((resolve, reject) => {
             db.run(
               `INSERT INTO images (memory_id, url, width, height, alt) VALUES (?, ?, ?, ?, ?)`,
-              [memoryId, image.url, image.width, image.height, image.alt || ''],
+              [memoryId, imgUrl, image.width, image.height, image.alt || ''],
               function (err) { if (err) reject(err); else resolve(this.lastID) }
             )
           })
 
           if (!captionEnabled || processed >= maxImages) continue
-          if (!isCaptionable(image.url)) continue
+          if (!isCaptionable(imgUrl)) continue
           if (consecutiveVisionFailures >= 3) continue // vision runner looks unstable; stop hammering it
-          processed++
 
           try {
-            // Vision model → caption → text embedding, stored against the parent memory.
-            // This is what makes the image "memorised" the same way page text is.
-            const caption = await visionClient.captionImage(image.url, image.alt || '')
-            if (!caption) { consecutiveVisionFailures++; continue }
-            consecutiveVisionFailures = 0
+            // Reuse a caption already generated for this exact image on an
+            // earlier page — skips the expensive vision inference call while
+            // still embedding + linking the image against THIS memory.
+            const priorCaption = await new Promise((resolve, reject) => {
+              db.get(
+                `SELECT caption FROM images
+                   WHERE url = ? AND caption IS NOT NULL AND caption != '' AND id != ?
+                   LIMIT 1`,
+                [imgUrl, imageRowId],
+                (err, row) => (err ? reject(err) : resolve(row ? row.caption : null))
+              )
+            })
+
+            // Vision model → caption → text embedding, stored against the parent
+            // memory. This is what makes the image "memorised" like page text.
+            // Provider decides local Ollama LLaVA vs AWS LLaVA per the switch.
+            let caption = priorCaption
+            if (!caption) {
+              processed++
+              caption = await modelProvider.generateImageCaption({
+                imageUrl: imgUrl,
+                altText: image.alt || ''
+              })
+              if (!caption) { consecutiveVisionFailures++; continue }
+              consecutiveVisionFailures = 0
+            }
 
             const imgText = [image.alt, caption].filter(Boolean).join('. ')
             const imgEmbedding = await generateEmbedding(imgText, { queueOnFailure: false })
@@ -495,7 +526,7 @@ app.post("/ingest", async (req, res) => {
               vector: imgEmbedding,
               text: caption,
               title: `🖼 ${image.alt || 'image'}`,
-              url: image.url,
+              url: imgUrl,
               timestamp,
               memory_id: memoryId
             }])
@@ -511,7 +542,7 @@ app.post("/ingest", async (req, res) => {
             const imgNodeId = knowledgeGraph.addImage({
               id: `image_${imageRowId}`,
               imageId: imageRowId,
-              url: image.url,
+              url: imgUrl,
               alt: image.alt || '',
               caption,
               width: image.width,
@@ -522,8 +553,14 @@ app.post("/ingest", async (req, res) => {
             knowledgeGraph.linkMemoryToImage(memoryNodeId, imgNodeId)
             imagesCaptioned++
           } catch (imgErr) {
+            if (imgErr && imgErr.code === "CLOUD_CONFIG_MISSING") {
+              // Cloud LLaVA switch is on but AWS config is missing — stop here
+              // instead of hammering a call that cannot succeed.
+              logError("image_caption_cloud_config", imgErr, { memoryId })
+              break
+            }
             consecutiveVisionFailures++
-            logError("image_caption_failure", imgErr, { memoryId, imageUrl: image.url })
+            logError("image_caption_failure", imgErr, { memoryId, imageUrl: imgUrl })
           }
         }
       }
@@ -683,6 +720,14 @@ app.post("/search", async (req, res) => {
   const timeRemaining = () => Math.max(0, EMBED_TIMEOUT - (Date.now() - startTime))
 
   try {
+    // Warn early if the Cloud LLaMA switch is on but its AWS config is missing —
+    // synthesis will fall back to raw results otherwise, with no obvious reason.
+    if (modelProvider.cloudLlamaEnabled() && !modelProvider.isLlamaCloudConfigured()) {
+      warnings.push(
+        "Cloud LLaMA is enabled but AWS_API_KEY/LLAMA_API_URL are not set — answer synthesis is unavailable until configured."
+      )
+    }
+
     let queryEmbedding = cacheManager.getQueryEmbedding(query)
     let ollamaUnavailable = false
 
@@ -925,6 +970,23 @@ app.put("/config", (req, res) => {
       success: false,
       error: "Missing or invalid updates in request body"
     })
+  }
+
+  // Cloud switches require their AWS config to be present in the environment.
+  // Refuse to turn them on otherwise — with a clear message, never the secret.
+  const cloudConfigErrors = []
+  if (updates.cloud_llama_enabled === true && !modelProvider.isLlamaCloudConfigured()) {
+    cloudConfigErrors.push(
+      "Cloud LLaMA needs AWS_API_KEY and LLAMA_API_URL set in the sidecar environment (.env)"
+    )
+  }
+  if (updates.cloud_llava_enabled === true && !modelProvider.isLlavaCloudConfigured()) {
+    cloudConfigErrors.push(
+      "Cloud LLaVA needs AWS_API_KEY and LLAVA_API_URL set in the sidecar environment (.env)"
+    )
+  }
+  if (cloudConfigErrors.length > 0) {
+    return res.status(400).json({ success: false, errors: cloudConfigErrors })
   }
 
   try {
@@ -1287,7 +1349,8 @@ app.get("/health", async (req, res) => {
       status: "ok",
       ollamaAvailable,
       embeddingQueueSize: embeddingRetryQueue.size,
-      graphStats: knowledgeGraph.getStats()
+      graphStats: knowledgeGraph.getStats(),
+      provider: modelProvider.getProviderStatus()
     })
   } catch (err) {
     res.status(500).json({ success: false, error: err.message })
@@ -1506,7 +1569,11 @@ app.get("/export", async (req, res) => {
       success: true,
       exportedAt: new Date().toISOString(),
       storage: "local",
-      externalApis: ["http://localhost:11434 (Ollama only)"],
+      externalApis: [
+        "http://localhost:11434 (Ollama — local inference + embeddings)",
+        ...(modelProvider.cloudLlamaEnabled() ? ["AWS LLaMA endpoint (Cloud LLaMA switch on)"] : []),
+        ...(modelProvider.cloudLlavaEnabled() ? ["AWS LLaVA endpoint (Cloud LLaVA switch on)"] : [])
+      ],
       data: {
         memories,
         sessions,

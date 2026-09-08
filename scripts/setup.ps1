@@ -6,17 +6,23 @@
   Installs and verifies every prerequisite, then installs project dependencies:
 
     - Git, Node.js LTS, Python 3            (via winget)
-    - Ollama + models: nomic-embed-text, llava, llama3.2:3b
+    - Ollama + models (local mode: nomic-embed-text, llava, llama3.2:3b;
+                       cloud mode: nomic-embed-text only)
     - Root extension dependencies           (yarn or npm)
     - sidecar/ Node dependencies            (npm)
     - sidecar/ Python dependencies          (pip, optional - clustering only)
     - Initializes sidecar/webmind.db
+
+  This script does NOT deploy anything to AWS. Cloud mode only records the
+  endpoint URLs + shared API key you already have into a local .env file.
 
 .USAGE
   Right-click > Run with PowerShell, or:
       powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
   Optional flags:
+      -Local         use local Ollama for everything (skip the prompt)
+      -Cloud         use AWS endpoints for LLaMA + LLaVA (skip the prompt)
       -SkipModels    do not pull Ollama models (large downloads)
       -SkipPython    do not install the Python clustering dependencies
 #>
@@ -24,14 +30,15 @@
 [CmdletBinding()]
 param(
   [switch]$SkipModels,
-  [switch]$SkipPython
+  [switch]$SkipPython,
+  [switch]$Local,
+  [switch]$Cloud
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Sidecar  = Join-Path $RepoRoot "sidecar"
-
-$OllamaModels = @("nomic-embed-text", "llava", "llama3.2:3b")
+$EnvFile  = Join-Path $RepoRoot ".env"
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -42,6 +49,22 @@ function Warn  ($m) { Write-Host "    $m"       -ForegroundColor Yellow }
 function Die   ($m) { Write-Host "!!! $m"       -ForegroundColor Red; exit 1 }
 
 function Have ($name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
+
+# Set KEY=VALUE in $EnvFile. Never overwrites a key that already has a
+# non-empty value (re-running setup won't clobber your secrets).
+function Upsert-Env ($key, $value) {
+  if (-not (Test-Path $EnvFile)) { New-Item -ItemType File -Path $EnvFile | Out-Null }
+  $lines = @(Get-Content $EnvFile -ErrorAction SilentlyContinue)
+  $match = $lines | Where-Object { $_ -match "^$([regex]::Escape($key))=" } | Select-Object -First 1
+  if ($match) {
+    $current = $match.Substring($key.Length + 1)
+    if ($current.Trim().Length -gt 0) { Warn "$key already set in .env - keeping existing value"; return }
+    $lines = $lines | Where-Object { $_ -notmatch "^$([regex]::Escape($key))=" }
+  }
+  $lines += "$key=$value"
+  Set-Content -Path $EnvFile -Value $lines -Encoding utf8
+  Ok "$key written to .env"
+}
 
 function Refresh-Path {
   $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -56,6 +79,40 @@ function Winget-Install ($id) {
   Info "Installing $id via winget"
   winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements
   Refresh-Path
+}
+
+# ---------------------------------------------------------------------------
+# 0. inference mode
+# ---------------------------------------------------------------------------
+$Mode = ""
+if ($Local) { $Mode = "local" }
+elseif ($Cloud) { $Mode = "cloud" }
+else {
+  Write-Host ""
+  Write-Host "How would you like to run AI inference?"
+  Write-Host "  1) Local only  - LLaMA + LLaVA + Nomic all via local Ollama"
+  Write-Host "  2) Cloud       - LLaMA + LLaVA via your AWS endpoints, Nomic stays local"
+  $choice = Read-Host "Choose [1/2] (default 1)"
+  if ($choice -eq "2") { $Mode = "cloud" } else { $Mode = "local" }
+}
+Info "Inference mode: $Mode"
+
+if ($Mode -eq "cloud") {
+  $OllamaModels = @("nomic-embed-text")
+  Info "Configuring AWS endpoints in $EnvFile (nothing is deployed to AWS)"
+  if (-not (Test-Path $EnvFile)) {
+    $example = Join-Path $RepoRoot ".env.example"
+    if (Test-Path $example) { Copy-Item $example $EnvFile }
+  }
+  $vKey   = Read-Host "  AWS_API_KEY (shared, blank = keep current)"
+  $vLlama = Read-Host "  LLAMA_API_URL"
+  $vLlava = Read-Host "  LLAVA_API_URL"
+  if ($vKey)   { Upsert-Env "AWS_API_KEY"   $vKey }
+  if ($vLlama) { Upsert-Env "LLAMA_API_URL" $vLlama }
+  if ($vLlava) { Upsert-Env "LLAVA_API_URL" $vLlava }
+  Warn "Enable the 'Cloud LLaMA' / 'Cloud LLaVA' switches in the extension settings to use them."
+} else {
+  $OllamaModels = @("nomic-embed-text", "llava", "llama3.2:3b")
 }
 
 # ---------------------------------------------------------------------------

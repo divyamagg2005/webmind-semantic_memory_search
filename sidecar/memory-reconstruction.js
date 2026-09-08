@@ -7,7 +7,7 @@
  * Requirements: 15.1-15.7, 17.1-17.4, 3.5
  */
 
-const { Ollama } = require('ollama');
+const { generateText } = require('./model-provider');
 
 /**
  * Default reconstruction options
@@ -39,10 +39,24 @@ function formatMemoriesForContext(memories, maxMemories = 5) {
 }
 
 /**
+ * System instruction for synthesis.
+ *
+ * Chat-tuned endpoints (e.g. the AWS LLaMA endpoint) otherwise tend to reply
+ * "I don't have access to your history / this conversation just started". The
+ * snippets ARE the user's history — this makes the model use them.
+ */
+const SYNTHESIS_SYSTEM_PROMPT =
+  "You reconstruct the user's own web browsing history. The numbered snippets " +
+  "below ARE pages the user visited — treat them as ground truth. Answer the " +
+  "question using ONLY those snippets, in 2-3 sentences, naming the site(s) " +
+  "you drew from. If the snippets don't contain the answer, say so plainly. " +
+  "Never claim you lack access to history or memory.";
+
+/**
  * Generate synthesis prompt for LLM
- * 
+ *
  * Requirement 15.4: Send query + fragments to Ollama for synthesis
- * 
+ *
  * @param {string} query - User's search query
  * @param {string} context - Formatted memory context
  * @returns {string} Complete prompt for LLM
@@ -89,33 +103,30 @@ async function synthesizeAnswer(query, memories, options = {}) {
   }
 
   try {
-    const ollama = new Ollama();
-    
     // Format context
     const context = formatMemoriesForContext(memories, maxMemories);
-    
+
     // Generate prompt
     const prompt = generateSynthesisPrompt(query, context);
-    
-    // Call Ollama for synthesis
-    const response = await ollama.generate({
-      model,
+
+    // Synthesis runs through the model provider — local Ollama LLaMA or the
+    // AWS LLaMA endpoint, depending on the cloud_llama_enabled switch.
+    const answer = await generateText({
       prompt,
-      stream: false,
-      options: {
-        temperature,
-        num_predict: maxTokens,
-        num_ctx: 2048
-      }
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      model,
+      temperature,
+      maxTokens,
+      numCtx: 2048
     });
 
     return {
-      answer: response.response.trim(),
+      answer: answer.trim(),
       memoriesUsed: Math.min(memories.length, maxMemories),
       synthesized: true,
       model,
       promptTokens: prompt.length,
-      responseTokens: response.response.length
+      responseTokens: answer.length
     };
 
   } catch (error) {

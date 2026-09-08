@@ -8,7 +8,7 @@
  * Requirements: 21.1-21.6, 22.1-22.6, 23.1-23.4
  */
 
-const { Ollama } = require('ollama');
+const { generateText } = require('./model-provider');
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -349,7 +349,7 @@ function extractClusterConcepts(knowledgeGraph, memberIds, topN = 10) {
  */
 async function generateClusterLabel(concepts, options = {}) {
   const {
-    model = 'llama3.2',
+    model = null, // null -> model provider picks the configured local/cloud model
     maxWords = DEFAULT_PARAMS.maxLabelWords
   } = options;
 
@@ -358,8 +358,6 @@ async function generateClusterLabel(concepts, options = {}) {
   }
 
   try {
-    const ollama = new Ollama();
-    
     const prompt = `Given these concepts from a group of related web pages: ${concepts.join(', ')}
 
 Generate a concise label (maximum ${maxWords} words) that describes the main theme or topic of this group.
@@ -372,18 +370,18 @@ The label should be:
 
 Label:`;
 
-    const response = await ollama.generate({
-      model,
+    // Label generation runs through the model provider — local Ollama LLaMA
+    // or the AWS LLaMA endpoint, depending on the cloud_llama_enabled switch.
+    const raw = await generateText({
       prompt,
-      stream: false,
-      options: {
-        temperature: 0.7,
-        num_predict: 20
-      }
+      system: 'Reply with only the label text — no preamble, quotes, or explanation.',
+      model,
+      temperature: 0.7,
+      maxTokens: 20
     });
 
     // Extract and clean the label
-    let label = response.response.trim();
+    let label = raw.trim();
     
     // Remove quotes if present
     label = label.replace(/^["']|["']$/g, '');

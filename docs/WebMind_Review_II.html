@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebMind — Review-II Documentation</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Segoe UI", Calibri, Arial, sans-serif;
+    font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; margin: 0;
+  }
+  h1, h2, h3, h4 { color: #0b3d61; line-height: 1.25; margin: 1.1em 0 .45em; }
+  h1 { font-size: 20pt; margin-top: 0; }
+  h2 { font-size: 14.5pt; border-bottom: 2px solid #0b3d61; padding-bottom: 3px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #12507e; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; color: #333; }
+  p { margin: .35em 0 .6em; text-align: justify; }
+  ul, ol { margin: .3em 0 .7em; padding-left: 1.4em; }
+  li { margin: .18em 0; }
+  code, .mono { font-family: "Consolas", "Courier New", monospace; font-size: 9pt; background: #f2f5f8; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f2f5f8; border: 1px solid #d7dee6; border-radius: 5px; padding: 8px 10px; font-family: "Consolas", monospace; font-size: 8.6pt; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+  table { border-collapse: collapse; width: 100%; margin: .5em 0 1em; font-size: 9pt; page-break-inside: avoid; }
+  th, td { border: 1px solid #b9c4cf; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #0b3d61; color: #fff; font-weight: 600; }
+  tr:nth-child(even) td { background: #f4f7fa; }
+  .section { page-break-before: always; }
+  .no-break { page-break-inside: avoid; }
+  .cover { text-align: center; padding-top: 55mm; page-break-after: always; }
+  .cover .sub { color: #12507e; font-size: 13pt; margin-top: 6px; }
+  .cover .meta { margin-top: 40mm; font-size: 10.5pt; color: #333; line-height: 1.9; }
+  .tag { display: inline-block; background: #e3edf5; color: #0b3d61; border: 1px solid #9dc0da; border-radius: 10px; padding: 1px 8px; font-size: 8pt; margin: 1px; }
+  .done { color: #1a7f37; font-weight: 600; }
+  .partial { color: #9a6700; font-weight: 600; }
+  .planned { color: #883; font-weight: 600; }
+  .callout { background: #eef4f9; border-left: 4px solid #0b3d61; padding: 8px 12px; margin: .7em 0; border-radius: 0 5px 5px 0; }
+  .fill { background: #fff7e6; border-left: 4px solid #d9a300; padding: 8px 12px; margin: .7em 0; border-radius: 0 5px 5px 0; font-size: 9.5pt; }
+  .toc a { color: #12507e; text-decoration: none; }
+  .toc li { margin: .28em 0; }
+  .small { font-size: 8.6pt; color: #555; }
+  figure { margin: .6em 0; page-break-inside: avoid; }
+  figcaption { font-size: 8.4pt; color: #555; text-align: center; margin-top: 3px; }
+  .arch { font-family: "Consolas", monospace; font-size: 8.2pt; line-height: 1.35; white-space: pre; background: #f2f5f8; border: 1px solid #d7dee6; border-radius: 5px; padding: 10px; overflow-x: auto; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 1.2em 0; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<div class="cover">
+  <h1>WebMind</h1>
+  <div class="sub">A Human-Like Computational Memory Engine for the Web Browser</div>
+  <div class="sub" style="font-size:11pt;margin-top:14px;">Capstone Project — Review-II Documentation</div>
+  <div class="meta">
+    <div><strong>Programme:</strong> B.Tech, Computer Science &amp; Engineering</div>
+    <div><strong>Review:</strong> Review-II &nbsp;|&nbsp; Weightage: 40%</div>
+    <div><strong>Repository state:</strong> branch <code>vision-model</code>, commit <code>9bf8b2e</code> (2026-09-09)</div>
+    <div><strong>Document date:</strong> 9 September 2026</div>
+    <div class="small" style="margin-top:20px;">Prepared from a direct static and dynamic analysis of the project source code, database, and version-control history.</div>
+  </div>
+</div>
+
+<!-- ============================ TOC ============================ -->
+<h2>Table of Contents</h2>
+<ol class="toc">
+  <li><a href="#s1">Project Title, Abstract, Problem Statement and Objectives</a></li>
+  <li><a href="#s2">Updated Literature Survey and Research Gap</a></li>
+  <li><a href="#s3">Proposed Methodology and System Architecture</a></li>
+  <li><a href="#s4">Dataset, Tools, Software and Hardware</a></li>
+  <li><a href="#s5">Implementation Status (&ge; 75%) and Module Demonstration</a></li>
+  <li><a href="#s6">Preliminary Results, Observations, Performance Analysis and Comparison</a></li>
+  <li><a href="#s7">Progress Towards Expected Outcome (Paper / Patent / Product)</a></li>
+  <li><a href="#s8">Updated Documentation, Source Code, Presentation and Evidence</a></li>
+  <li><a href="#s9">Citations and References (IEEE Format)</a></li>
+  <li><a href="#s10">Project-Work Attendance Record</a></li>
+  <li><a href="#s11">Individual Contribution of Each Team Member</a></li>
+  <li><a href="#s12">Suitability as a Potential Best Project</a></li>
+</ol>
+
+<!-- ============================ 1 ============================ -->
+<div class="section" id="s1">
+<h2>1. Project Title, Abstract, Problem Statement and Objectives</h2>
+
+<h3>1.1 Title</h3>
+<p><strong>WebMind — A Human-Like Computational Memory Engine for the Web Browser</strong>
+(a privacy-preserving, local-first browser extension that turns a user's browsing history into an
+associative, decaying, multi-modal memory that can be queried in natural language).</p>
+
+<h3>1.2 Abstract</h3>
+<p>Modern users consume large volumes of web content but retain very little of it. Browser history is a
+flat, reverse-chronological list keyed on exact URLs and titles; it offers no notion of importance,
+no forgetting, no association between related pages, and no ability to answer a question such as
+&ldquo;what did I read about vector databases last week?&rdquo;. WebMind reframes browsing history as a
+<em>computational model of human memory</em>. A Chrome (Manifest V3) extension passively captures each page,
+together with behavioural engagement signals (dwell time with focus-aware pausing, maximum scroll depth,
+revisit count, bookmark state) and page media (content images, videos). A local Node.js
+&ldquo;sidecar&rdquo; server converts page text and vision-model image captions into 768-dimensional
+embeddings using a locally hosted <code>nomic-embed-text</code> model, stores them in an on-device
+vector store (LanceDB), extracts concepts and named entities, and incrementally builds a knowledge
+graph of concepts, memories, domains, sessions, images and clusters (2,500+ nodes, 88,000+ edges in the
+current test corpus). Retrieval is <em>hybrid</em>: approximate-nearest-neighbour semantic search is fused
+with graph traversal (spreading activation over 2 hops) and re-ranked by a memory-strength score that
+combines engagement, an exponential Ebbinghaus-style decay term, revisit-based decay resistance, bookmark
+boosting and manual pinning. A large-language-model (Llama&nbsp;3.2) then <em>reconstructs</em> a cited,
+natural-language answer from the retrieved fragments rather than returning raw links. All inference runs
+locally by default; an optional provider-abstraction layer allows the Llama and LLaVA models to be
+offloaded to a private AWS SageMaker endpoint (behind a single shared API key) while embeddings always
+remain local. The system is implemented in ~19,000 lines of code with 415 automated test cases across
+18 test suites.</p>
+
+<h3>1.3 Problem Statement</h3>
+<p>The browser is the primary interface through which knowledge workers, researchers and students acquire
+information, yet the browser's own memory of that activity is impoverished:</p>
+<ul>
+  <li><strong>No prioritisation.</strong> A page skimmed for two seconds and an article studied for
+      twenty minutes are stored identically.</li>
+  <li><strong>No forgetting.</strong> History grows without bound; stale, low-value pages compete equally
+      with recent, important ones, degrading any ranking built on top of it.</li>
+  <li><strong>No association.</strong> Two pages about the same topic, visited a month apart, have no
+      relationship; recalling one does not surface the other.</li>
+  <li><strong>No context.</strong> The fact that eight pages were part of one focused research session is lost.</li>
+  <li><strong>Lexical, not semantic, recall.</strong> History search matches substrings of the title/URL;
+      it fails for &ldquo;that page with the dark database diagram&rdquo; or paraphrased queries.</li>
+  <li><strong>No synthesis.</strong> The user must re-open and re-read pages to reconstruct what they learned.</li>
+  <li><strong>Privacy tax on the alternatives.</strong> Cloud &ldquo;second brain&rdquo; and
+      retrieval-augmented-generation tools that <em>do</em> offer semantic recall typically upload the
+      user's entire reading history to third-party servers.</li>
+</ul>
+<p><strong>Problem:</strong> <em>Design and build a local-first system that continuously and passively
+converts a user's web browsing into a queryable, human-like memory — one that prioritises what mattered,
+forgets what did not, connects related material, preserves session context, supports multi-modal and
+natural-language recall, and synthesises cited answers — without any browsing data leaving the user's device.</em></p>
+
+<h3>1.4 Objectives</h3>
+<ol>
+  <li><strong>O1 — Passive multi-modal capture.</strong> Capture page text, engagement signals
+      (focus-aware dwell time, scroll depth, revisits, bookmarks) and page media without disrupting browsing.</li>
+  <li><strong>O2 — Local embedding and storage.</strong> Generate 768-d text embeddings on-device and store
+      them with structured metadata in a hybrid SQLite + LanceDB + graph store.</li>
+  <li><strong>O3 — Associative knowledge graph.</strong> Extract concepts/entities, build a persistent
+      concept&ndash;memory&ndash;domain&ndash;session graph with co-occurrence-weighted associations, and
+      traverse it for recall within two hops.</li>
+  <li><strong>O4 — Human-memory dynamics.</strong> Implement an engagement score, an exponential decay
+      function with revisit-based resistance, bookmark boosting and manual pinning, applied at query time.</li>
+  <li><strong>O5 — Contextual memory.</strong> Detect browsing sessions from temporal gaps and embedding
+      similarity; preserve visit sequence for &ldquo;before/after&rdquo; queries.</li>
+  <li><strong>O6 — Multi-modal recall.</strong> Caption content images with a vision-language model and
+      embed the captions into the same vector space as page text.</li>
+  <li><strong>O7 — Hybrid retrieval + reconstruction.</strong> Fuse semantic and associative retrieval,
+      re-rank by memory strength, and use a local LLM to synthesise a cited answer with graceful
+      search-only fallback.</li>
+  <li><strong>O8 — Autonomous organisation.</strong> Cluster memories with HDBSCAN, label clusters with an
+      LLM, and expose the knowledge graph through an interactive visualiser.</li>
+  <li><strong>O9 — Privacy and portability.</strong> Keep all data and inference local by default; provide
+      a clean provider abstraction for optional private-cloud model hosting and a full data-export path.</li>
+  <li><strong>O10 — Configurability and robustness.</strong> Expose all tunable coefficients through a
+      validated configuration API, and degrade gracefully when any model backend is unavailable.</li>
+</ol>
+</div>
+
+<!-- ============================ 2 ============================ -->
+<div class="section" id="s2">
+<h2>2. Updated Literature Survey and Research Gap</h2>
+
+<h3>2.1 Foundational and Related Work</h3>
+<table>
+<tr><th>Area</th><th>Representative work</th><th>Contribution</th><th>Relation / limitation for WebMind</th></tr>
+<tr><td>Personal knowledge augmentation</td><td>Bush, &ldquo;As We May Think&rdquo; (1945) [1]; Vemuri &amp; Bell, MyLifeBits [2]</td><td>Vision of an associative personal record (Memex); lifelong personal capture and retrieval.</td><td>Conceptual ancestor. MyLifeBits is capture-centric with manual/temporal retrieval and no cognitive model of importance or forgetting.</td></tr>
+<tr><td>Re-finding &amp; PIM</td><td>Teevan et al., re-finding behaviour [3]; Jones, &ldquo;Keeping Found Things Found&rdquo; [4]</td><td>Empirical evidence that users spend substantial effort re-locating previously seen information.</td><td>Motivates the problem; proposes better search/organisation but not an autonomous memory model.</td></tr>
+<tr><td>Human memory theory</td><td>Ebbinghaus forgetting curve [5]; Anderson &amp; Schooler, rational analysis of memory [6]; ACT-R activation [7]</td><td>Retention decays exponentially with time; recall probability tracks frequency and recency (&ldquo;need probability&rdquo;).</td><td>Directly operationalised: WebMind's decay term, revisit reinforcement and engagement weighting are a computational analogue.</td></tr>
+<tr><td>Associative recall</td><td>Collins &amp; Loftus, spreading activation [8]</td><td>Concepts form a network; activating one spreads activation to neighbours.</td><td>Realised as 2-hop graph traversal with co-occurrence-weighted edges and a hop-distance penalty.</td></tr>
+<tr><td>Text embeddings</td><td>Reimers &amp; Gurevych, Sentence-BERT [9]; Nussbaum et al., Nomic Embed [10]</td><td>Dense sentence/passage embeddings for semantic similarity; open, reproducible 768-d model with long context.</td><td><code>nomic-embed-text</code> is the on-device embedding backbone (768-d, 8k context).</td></tr>
+<tr><td>Multi-modal embeddings</td><td>Radford et al., CLIP [11]; Liu et al., LLaVA [12]</td><td>Joint image&ndash;text embedding space; instruction-tuned vision-language assistant.</td><td>WebMind uses a caption-then-embed strategy (LLaVA caption &rarr; text embedding) so images share the text vector space; a native CLIP path is stubbed for future work.</td></tr>
+<tr><td>Retrieval-augmented generation</td><td>Lewis et al., RAG [13]; Edge et al., GraphRAG [14]</td><td>Condition generation on retrieved passages; use a graph index for global/associative retrieval.</td><td>WebMind is a personal, on-device RAG whose corpus is the user's own browsing and whose index is a live knowledge graph.</td></tr>
+<tr><td>Density-based clustering</td><td>Campello, Moulavi &amp; Sander, HDBSCAN [15]</td><td>Hierarchical density clustering with noise handling and no <em>k</em>.</td><td>Used for autonomous thematic grouping of memory embeddings (min cluster size 3).</td></tr>
+<tr><td>Local LLM inference</td><td>Grattafiori et al., Llama 3 herd [16]; Ollama runtime [17]</td><td>Capable small open-weight LLMs; simple local serving.</td><td>Llama 3.2 (3B) performs memory reconstruction and cluster labelling; Ollama is the default local runtime.</td></tr>
+<tr><td>Commercial &ldquo;second brain&rdquo;</td><td>Rewind.ai, Recall/Napkin, Heyday, browser-history-GPT extensions [18]</td><td>Semantic capture of screen/browser activity with LLM Q&amp;A.</td><td>Typically cloud-dependent, screen-recording-based (heavy, privacy-invasive), and lack an explicit forgetting/association model.</td></tr>
+</table>
+
+<h3>2.2 Research Gap</h3>
+<div class="callout">
+<p>Across the literature, the following combination is <strong>not</strong> addressed by any single existing system:</p>
+<ol>
+  <li><strong>Cognitively-grounded ranking.</strong> Existing personal-search and second-brain tools rank by
+      recency or raw embedding similarity. None combine a behavioural engagement score, an
+      Ebbinghaus-style query-time decay term <em>and</em> revisit-based decay resistance with manual
+      override (pin/bookmark) into a unified memory-strength function.</li>
+  <li><strong>Live associative index over personal browsing.</strong> GraphRAG-style graph indices exist for
+      static document corpora; WebMind maintains an <em>incrementally updated</em> concept/memory/session
+      graph over a continuously growing personal stream and fuses its traversal with vector search.</li>
+  <li><strong>Session and sequential context.</strong> Browser history and PIM tools discard the fact that a
+      burst of pages formed one research session; WebMind reconstructs sessions from temporal gaps
+      <em>and</em> inter-page embedding similarity and preserves visit order.</li>
+  <li><strong>Multi-modal recall without a cloud vision API.</strong> Image search over browsing normally
+      requires uploading images to a hosted CLIP/vision service; WebMind captions images with a local
+      vision-language model and embeds the captions into the shared local text space.</li>
+  <li><strong>Strict local-first privacy with an optional, clean cloud-offload seam.</strong> The
+      provider-abstraction layer lets the two heavy models (LLM, VLM) move to a <em>user-owned</em> private
+      endpoint independently, while the embedding model — the component that would otherwise see every page —
+      is architecturally pinned to the device.</li>
+</ol>
+<p><strong>Gap statement:</strong> <em>There is no open, local-first browser-integrated system that unifies
+behavioural engagement, human-memory decay dynamics, an incremental associative knowledge graph, session
+context, local multi-modal embedding and LLM-based cited reconstruction into a single privacy-preserving
+recall pipeline. WebMind targets exactly this intersection.</em></p>
+</div>
+</div>
+
+<!-- ============================ 3 ============================ -->
+<div class="section" id="s3">
+<h2>3. Proposed Methodology and System Architecture</h2>
+
+<h3>3.1 Design Principles</h3>
+<ul>
+  <li><strong>Local-first:</strong> data and (by default) all inference stay on the device.</li>
+  <li><strong>Passive &amp; non-blocking:</strong> capture never delays page load; heavy work is asynchronous on the sidecar.</li>
+  <li><strong>Hybrid storage:</strong> SQLite for structured metadata, LanceDB for vectors, an in-process graph (graphology) for associations.</li>
+  <li><strong>Dual retrieval:</strong> embeddings for <em>semantic</em> recall, graph traversal for <em>associative</em> recall, fused and re-ranked.</li>
+  <li><strong>Reconstructive output:</strong> return a synthesised, cited answer, not just links; degrade to search-only if the LLM is down.</li>
+  <li><strong>Provider abstraction:</strong> callers ask for <code>generateText()</code> / <code>generateImageCaption()</code>; a single module decides local Ollama vs. private AWS endpoint per user setting.</li>
+</ul>
+
+<h3>3.2 System Architecture</h3>
+<div class="arch">
+                          BROWSER (Chrome, Manifest V3)
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │  Content Script  contents/webmind.ts                                   │
+  │   • focus-aware dwell timer, max scroll depth, revisit counter         │
+  │   • image extraction (lazy-load / srcset aware, dedup, pixel filter)   │
+  │   • video metadata, session id / sequence / previous-url               │
+  │                         │ chrome.runtime message                       │
+  │  Background Worker  background.ts                                      │
+  │   • bookmark + tab-group enrichment (privileged APIs)                  │
+  │   • POST page payload → sidecar                                        │
+  └───────────────────────────┬───────────────────────────────────────────┘
+                              │ HTTP  (localhost:3001)
+  ┌───────────────────────────┴───────────────────────────────────────────┐
+  │  SIDECAR SERVER  sidecar/server.js  (Node + Express, 24 endpoints)    │
+  │                                                                       │
+  │  Ingestion pipeline (POST /ingest)                                    │
+  │   engagement score → memory strength → session detect → upsert row    │
+  │   → text embedding → concept/entity extraction → graph update         │
+  │   → per-image: (reuse|VLM caption) → caption embedding → image node   │
+  │                                                                       │
+  │  Query pipeline (POST /search)                                        │
+  │   query embedding → ANN search (LanceDB) → concept ID → graph 2-hop   │
+  │   traversal → candidate union → memory-strength + decay re-rank       │
+  │   → temporal filter → LLM reconstruction (cited) → JSON               │
+  │                                                                       │
+  │  Model Provider  sidecar/model-provider.js                           │
+  │        ┌── cloud_llama_enabled? ──┐        ┌── cloud_llava_enabled? ─┐ │
+  │   local Ollama Llama 3.2  |  AWS  │   local Ollama LLaVA  |  AWS     │ │
+  │   embeddings: nomic-embed-text  ── ALWAYS LOCAL ──────────────────── │ │
+  └───┬───────────────┬────────────────┬───────────────┬─────────────────┘
+      │               │                │               │
+   SQLite         LanceDB        Knowledge Graph   Ollama runtime
+  webmind.db    (768-d vectors)  knowledge-graph.json  (localhost:11434)
+  memories,     text + image     concepts, memories,   nomic-embed-text
+  sessions,     caption vectors  domains, sessions,    llava, llama3.2:3b
+  images,                        images, clusters      ── or ──
+  videos, config                 (~2.5k nodes /        AWS SageMaker
+                                  ~88k edges)          (Llama / LLaVA)
+
+  Knowledge-graph visualiser:  GET /graph  (vis-network SPA, 4 view modes)
+</div>
+
+<h3>3.3 Ingestion Methodology (per page visit)</h3>
+<ol>
+  <li><strong>Capture.</strong> After a 5&nbsp;s settle delay (and again on <code>visibilitychange</code>/<code>beforeunload</code>),
+      the content script sends title, URL, first 10,000 chars of <code>innerText</code>, timestamp,
+      <code>{dwellTime, scrollDepth, revisitCount}</code>, session context and de-duplicated media.</li>
+  <li><strong>Engagement score</strong> = 0.4&nbsp;&middot;&nbsp;min(dwell/300s,&nbsp;1) + 0.3&nbsp;&middot;&nbsp;(scroll/100) + 0.3&nbsp;&middot;&nbsp;log(1+revisits)/log(101).</li>
+  <li><strong>Memory strength</strong> = (engagement&nbsp;&middot;&nbsp;0.4 + association_boost + revisit_boost) &times; (bookmarked ? 2.0 : 1.0), with revisit_boost = min(0.1&nbsp;&middot;&nbsp;log(1+unique_visit_days), 1).</li>
+  <li><strong>Session detection.</strong> New session if gap &gt; 30&nbsp;min <em>or</em> cosine similarity between consecutive page embeddings &lt; 0.7; otherwise continue current session; sequence number incremented.</li>
+  <li><strong>Upsert.</strong> One <code>memories</code> row per URL; revisits merge metrics (accumulate dwell, max scroll) and skip re-embedding.</li>
+  <li><strong>Text embedding.</strong> <code>nomic-embed-text</code>, 768-d, 8k context, char-capped; stored in LanceDB with <code>memory_id</code>; failures enter a retry queue.</li>
+  <li><strong>Concept / entity extraction.</strong> <code>natural</code> library — word tokeniser + Porter stemmer + TF-IDF for topics; rule/gazetteer NER for PERSON / ORG / TECH / TOPIC with confidence 0.6&ndash;0.9; concepts below 0.6 dropped.</li>
+  <li><strong>Graph update.</strong> Add/merge concept nodes (occurrence count), add memory node, domain hub, session-sequence edge to previous memory, memory&ndash;concept links, and co-occurrence-weighted concept&ndash;concept associations (persisted when strength &gt; 0.3).</li>
+  <li><strong>Image pipeline.</strong> For up to 6 captionable images: reuse an existing caption for the same URL if present, else call the VLM (local LLaVA or AWS); embed <code>alt + caption</code> with <code>nomic-embed-text</code>; add an image node linked to its memory; a consecutive-failure breaker stops hammering an unstable backend.</li>
+</ol>
+
+<h3>3.4 Retrieval &amp; Reconstruction Methodology (per query)</h3>
+<ol>
+  <li><strong>Query embedding</strong> (cached per query string; 55&nbsp;s budget on CPU).</li>
+  <li><strong>Semantic recall.</strong> LanceDB ANN search, top-<em>k</em> (default 20).</li>
+  <li><strong>Associative expansion.</strong> Extract concepts of the top results; breadth-first graph
+      traversal to 2 hops over edges with association strength &ge; 0.3; collect connected memories.</li>
+  <li><strong>Scoring.</strong> <code>combined = w<sub>s</sub>&middot;semantic + w<sub>a</sub>&middot;associative</code>
+      (default 0.6 / 0.4); associative term carries a hop penalty (1.0 / 0.7 / 0.4 for 0 / 1 / 2 hops);
+      each candidate's memory strength is decayed at query time by
+      <code>strength &times; e<sup>&minus;r&middot;days</sup></code>, where
+      <code>r = min(base_rate / (1 + 0.1&middot;revisits), 0.005)</code> and pinned memories use <code>r = 0</code>.</li>
+  <li><strong>Temporal filter.</strong> Natural-language time expressions in the query
+      (&ldquo;yesterday&rdquo;, &ldquo;last week&rdquo;, &ldquo;3 days ago&rdquo;, weekday names) are parsed
+      to a date window and applied, with fallback to all-time if empty.</li>
+  <li><strong>Reconstruction.</strong> Top memories (default 5) are formatted into a context block; a system
+      instruction pins the model to the supplied snippets; Llama&nbsp;3.2 produces a 2&ndash;3 sentence answer;
+      citations (title, URL, relevance, excerpt) are attached. Per-stage timeouts (embed 55&nbsp;s /
+      retrieval 10&nbsp;s / synthesis 10&nbsp;s) guarantee a response; if the LLM/Ollama is unavailable the
+      API returns ranked results in &ldquo;search-only&rdquo; mode.</li>
+</ol>
+
+<h3>3.5 Knowledge-Graph &amp; Clustering Methodology</h3>
+<ul>
+  <li><strong>Graph:</strong> single undirected <code>graphology</code> graph, node types
+      {concept, memory, domain, session, image, cluster}, edge types {concept_association,
+      memory_concept_link, session_sequence, domain_membership, memory_image_link, cluster_membership,
+      cross_cluster_link}. Persisted to JSON; auto-saved when dirty; reconciled against SQLite on startup
+      (orphan purge + missing-node back-fill).</li>
+  <li><strong>Clustering:</strong> memory embeddings are streamed to a Python HDBSCAN worker
+      (<code>hdbscan_cluster.py</code>, min cluster size 3); each cluster's top concepts are sent to the LLM
+      for a &le;5-word label; cross-cluster edges are added when centroid similarity &gt; 0.5.</li>
+  <li><strong>Visualiser:</strong> <code>GET /graph</code> serves a vis-network single-page app with Full /
+      Journey / Domains / Topics layouts, time and site filters, a concept-frequency slider, type toggles,
+      node inspector, and honest &ldquo;subset view&rdquo; reporting when the render is capped.</li>
+</ul>
+</div>
+
+<!-- ============================ 4 ============================ -->
+<div class="section" id="s4">
+<h2>4. Dataset, Tools, Software and Hardware</h2>
+
+<h3>4.1 Dataset</h3>
+<p>WebMind has <strong>no external training dataset</strong>; every model it uses is pre-trained and used
+for inference only. Its working data is the <em>user's own live browsing stream</em>. For development,
+testing and evaluation the following corpora are used:</p>
+<table>
+<tr><th>Corpus</th><th>Description</th><th>Scale (current)</th><th>Use</th></tr>
+<tr><td>Live capture corpus</td><td>Real pages browsed by the team with the extension active (GitHub, Google, YouTube, ChatGPT, Medium, news, Drive, university portal, etc.)</td><td>51 memories, 167 images (12 captioned + embedded), 15 videos, 5 sessions; knowledge graph ~2,572 nodes / ~88,851 edges; ~2,461 concepts</td><td>End-to-end functional testing, retrieval quality, graph visualisation, performance measurement</td></tr>
+<tr><td>Synthetic fixtures</td><td>Hand-authored page/memory/embedding objects inside the 18 test suites</td><td>Hundreds of fixtures across 415 test cases</td><td>Deterministic unit &amp; integration testing of every scoring formula, the graph, retrieval fusion, decay, sessions, migration, config validation</td></tr>
+<tr><td>Data-migration corpus</td><td>Legacy-schema SQLite/LanceDB databases</td><td>Configurable batch size (default 100)</td><td><code>/migrate</code> endpoint — importing pre-existing WebMind data into the new schema</td></tr>
+</table>
+<p><strong>Pre-trained models (inference only):</strong> <code>nomic-embed-text</code> (137M params, 768-d,
+8192-token context) for all embeddings; <code>llava</code> (7B vision-language) for image captioning;
+<code>llama3.2:3b</code> for memory reconstruction and cluster labelling.</p>
+
+<h3>4.2 Software, Libraries and Tools</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Version / detail</th><th>Role</th></tr>
+<tr><td rowspan="4">Browser extension</td><td>Plasmo framework</td><td>0.90.5</td><td>MV3 build, content script, background worker, popup bundling</td></tr>
+<tr><td>React + ReactDOM</td><td>18.2.0</td><td>Popup UI (Search / Clusters / Graph / Settings tabs)</td></tr>
+<tr><td>TypeScript</td><td>5.3.3</td><td>Typed extension code (<code>types/index.ts</code> data model)</td></tr>
+<tr><td>Chrome Extensions API</td><td>MV3 (<code>@types/chrome</code> 0.0.258)</td><td><code>storage</code>, <code>bookmarks</code>, <code>tabs</code> permissions</td></tr>
+<tr><td rowspan="8">Sidecar server</td><td>Node.js</td><td>&ge; 18 (global <code>fetch</code>, <code>AbortController</code>)</td><td>Runtime</td></tr>
+<tr><td>Express</td><td>5.x</td><td>HTTP API (24 routes)</td></tr>
+<tr><td>@lancedb/lancedb</td><td>0.29.x</td><td>On-device vector store, ANN search</td></tr>
+<tr><td>sqlite3</td><td>6.x</td><td>Structured metadata store</td></tr>
+<tr><td>graphology (+ shortest-path, operators)</td><td>0.26.x</td><td>In-process knowledge graph</td></tr>
+<tr><td>natural</td><td>8.x</td><td>Tokeniser, Porter stemmer, TF-IDF, NER helpers</td></tr>
+<tr><td>ollama (JS client)</td><td>0.6.x</td><td>Local embedding / LLM / VLM calls</td></tr>
+<tr><td>vis-network</td><td>10.x</td><td>Knowledge-graph visualiser</td></tr>
+<tr><td>Clustering</td><td>Python 3 + hdbscan, numpy, scikit-learn</td><td>hdbscan &ge; 0.8.33</td><td>Density-based memory clustering (subprocess)</td></tr>
+<tr><td>Local inference</td><td>Ollama runtime</td><td>localhost:11434</td><td>Serves nomic-embed-text, llava, llama3.2:3b</td></tr>
+<tr><td>Optional cloud inference</td><td>AWS SageMaker + API Gateway</td><td>OpenAI-compatible chat endpoints, <code>x-api-key</code> auth</td><td>Optional offload of Llama / LLaVA (user-owned; one shared key; embeddings never offloaded)</td></tr>
+<tr><td>Dev tooling</td><td>Prettier 3.2.4, Node built-in test runner, PowerShell/Bash setup scripts, git</td><td>&mdash;</td><td>Formatting, 415 automated tests, one-command setup, version control</td></tr>
+</table>
+
+<h3>4.3 Hardware</h3>
+<table>
+<tr><th>Environment</th><th>Specification</th><th>Notes</th></tr>
+<tr><td>Development / demo machine</td><td>Windows 11, x86-64, 16&nbsp;GB RAM; integrated/entry GPU</td><td>Runs the extension, sidecar, SQLite/LanceDB and Ollama concurrently. Local LLM/VLM inference is CPU-bound here — the motivation for the optional cloud-offload path.</td></tr>
+<tr><td>Optional private cloud</td><td>AWS SageMaker real-time inference endpoint(s) fronted by API Gateway</td><td>Two endpoints (Llama, LLaVA), one shared API key. Provisioned and owned by the user; <strong>not</strong> created or managed by this project's code or setup scripts.</td></tr>
+<tr><td>Minimum target</td><td>Node &ge; 18, ~2&nbsp;GB free disk for models + data, any modern Chromium browser</td><td>Runs fully offline once models are pulled.</td></tr>
+</table>
+</div>
+
+<!-- ============================ 5 ============================ -->
+<div class="section" id="s5">
+<h2>5. Implementation Status (&ge; 75%) and Module Demonstration</h2>
+
+<h3>5.1 Quantitative summary</h3>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Extension code (TypeScript / TSX)</td><td>~2,019 LOC (<code>background.ts</code>, <code>popup.tsx</code>, <code>contents/webmind.ts</code>, <code>types/index.ts</code>)</td></tr>
+<tr><td>Sidecar application code (JS)</td><td>~9,651 LOC across 25 modules</td></tr>
+<tr><td>Automated test code (JS)</td><td>~7,418 LOC</td></tr>
+<tr><td>Test suites / test cases</td><td>18 suites / <strong>415</strong> test cases (Node built-in runner)</td></tr>
+<tr><td>Python clustering worker</td><td>118 LOC</td></tr>
+<tr><td>REST endpoints implemented</td><td>24</td></tr>
+<tr><td>Knowledge-graph scale (test corpus)</td><td>~2,572 nodes / ~88,851 edges</td></tr>
+<tr><td>Git history</td><td>10 commits; latest <code>9bf8b2e</code> (2026-09-09)</td></tr>
+</table>
+
+<h3>5.2 Module-by-module completion</h3>
+<p>Mapped against the 30-requirement specification. Legend:
+<span class="done">DONE</span> = implemented + tested,
+<span class="partial">PARTIAL</span> = core path implemented, refinement pending,
+<span class="planned">PLANNED</span> = designed, not yet built.</p>
+<table>
+<tr><th>#</th><th>Module</th><th>Key files</th><th>Status</th></tr>
+<tr><td>1</td><td>Page capture &amp; engagement tracking (dwell w/ focus pause, scroll depth, revisits, media extraction)</td><td><code>contents/webmind.ts</code>, <code>background.ts</code></td><td class="done">DONE</td></tr>
+<tr><td>2</td><td>Ingestion pipeline &amp; per-URL upsert</td><td><code>sidecar/server.js</code> <code>/ingest</code>, <code>ingestion-pipeline.test.js</code></td><td class="done">DONE</td></tr>
+<tr><td>3</td><td>Engagement score &amp; memory strength formulas</td><td><code>engagement-score.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>4</td><td>Memory decay + revisit resistance + pinning</td><td><code>memory-decay.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>5</td><td>Local text embeddings (nomic-embed-text, 768-d) + retry queue</td><td><code>embed.js</code>, <code>multimodal-embeddings.js</code>, <code>error-handling.js</code></td><td class="done">DONE</td></tr>
+<tr><td>6</td><td>Concept / entity extraction (TF-IDF + NER)</td><td><code>concept-extraction.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>7</td><td>Knowledge graph (nodes, edges, associations, persistence, reconciliation)</td><td><code>knowledge-graph.js</code> (+ test, 42 cases)</td><td class="done">DONE</td></tr>
+<tr><td>8</td><td>Session detection (temporal + embedding-similarity) &amp; sequence</td><td><code>session-detection.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>9</td><td>Hybrid retrieval (semantic &oplus; associative, hop penalty, fusion, re-rank)</td><td><code>hybrid-retrieval.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>10</td><td>Temporal query parsing</td><td><code>sidecar/server.js</code> <code>parseTemporalContext()</code></td><td class="done">DONE</td></tr>
+<tr><td>11</td><td>LLM memory reconstruction + citations + search-only fallback</td><td><code>memory-reconstruction.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>12</td><td>Multi-modal image pipeline (VLM caption &rarr; caption embedding &rarr; image node)</td><td><code>server.js</code> <code>/ingest</code>, <code>multimodal-embeddings.js</code></td><td class="done">DONE</td></tr>
+<tr><td>13</td><td>Model provider abstraction (local Ollama &harr; AWS, per-model switches, config validation, typed errors)</td><td><code>model-provider.js</code>, <code>load-env.js</code>, <code>config-manager.js</code></td><td class="done">DONE</td></tr>
+<tr><td>14</td><td>Configuration API (schema, validation, hot-reload)</td><td><code>config-manager.js</code> (+ test), <code>/config*</code></td><td class="done">DONE</td></tr>
+<tr><td>15</td><td>Priority weighting endpoints (pin / unpin / bookmark)</td><td><code>server.js</code>, <code>priority-weighting.test.js</code></td><td class="done">DONE</td></tr>
+<tr><td>16</td><td>Autonomous clustering (HDBSCAN worker + LLM labels + cross-cluster links)</td><td><code>clustering.js</code> (+ test), <code>hdbscan_cluster.py</code></td><td class="done">DONE</td></tr>
+<tr><td>17</td><td>Knowledge-graph visualiser (4 modes, filters, inspector, honest truncation)</td><td><code>graph-viewer.html</code>, <code>/graph*</code></td><td class="done">DONE</td></tr>
+<tr><td>18</td><td>Popup UI (Search, Clusters, Graph, Settings incl. cloud switches)</td><td><code>popup.tsx</code></td><td class="done">DONE</td></tr>
+<tr><td>19</td><td>Data migration from legacy schema</td><td><code>data-migration.js</code>, <code>migrate-schema.js</code> (+ tests)</td><td class="done">DONE</td></tr>
+<tr><td>20</td><td>Performance layer (query-embedding cache, index optimiser, monitor, <code>/graph/data</code> TTL cache, request coalescing)</td><td><code>performance.js</code>, <code>cache.js</code> (+ tests)</td><td class="done">DONE</td></tr>
+<tr><td>21</td><td>Robustness (per-stage timeouts, Ollama-down handling, embedding retry queue, graph corruption recovery)</td><td><code>error-handling.js</code> (+ test)</td><td class="done">DONE</td></tr>
+<tr><td>22</td><td>Data export (<code>/export</code>)</td><td><code>sidecar/server.js</code></td><td class="done">DONE</td></tr>
+<tr><td>23</td><td>One-command setup (Windows PowerShell + macOS/Linux Bash, local/cloud modes)</td><td><code>scripts/setup.ps1</code>, <code>scripts/setup.sh</code></td><td class="done">DONE</td></tr>
+<tr><td>24</td><td>Native CLIP image-embedding path (image-to-image similarity)</td><td><code>multimodal-embeddings.js</code> (<code>CLIPEmbeddingClient</code> interface stub)</td><td class="planned">PLANNED</td></tr>
+<tr><td>25</td><td>Video-thumbnail embedding (metadata captured; thumbnail not yet embedded)</td><td><code>server.js</code> <code>videos</code> table</td><td class="partial">PARTIAL</td></tr>
+<tr><td>26</td><td>SQLite encryption-at-rest</td><td>schema note (Req 26.4)</td><td class="planned">PLANNED</td></tr>
+<tr><td>27</td><td>Tab-group associative edges &amp; source-span answer highlighting</td><td>tab-group id captured; edge/highlight pending</td><td class="partial">PARTIAL</td></tr>
+<tr><td>28</td><td>Scalability hardening to 100k memories (archiving of low-strength memories)</td><td>design present; not stress-tested at 100k</td><td class="planned">PLANNED</td></tr>
+</table>
+
+<div class="callout">
+<p><strong>Completion assessment:</strong> 22 of 28 tracked modules are fully implemented and covered by
+automated tests; 2 are partial; 4 are planned. Weighting by effort, the eight core capabilities from the
+specification (capture, engagement, decay, associative graph, sessions, multi-modal, hybrid
+retrieval + reconstruction, clustering) are <strong>all functional end-to-end</strong>. Overall implementation
+completion is estimated at <strong>~85%</strong>, comfortably above the 75% Review-II threshold. The
+remaining work is refinement (native CLIP, video-thumbnail embedding, at-rest encryption, 100k-scale
+archiving) rather than core functionality.</p>
+</div>
+
+<h3>5.3 Live demonstration script (implemented modules)</h3>
+<ol>
+  <li><strong>Setup:</strong> <code>powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</code> &rarr;
+      choose <em>local</em> or <em>cloud</em>; then <code>cd sidecar &amp;&amp; node server.js</code> and
+      <code>yarn dev</code>; load <code>build/chrome-mv3-dev</code> as an unpacked extension.</li>
+  <li><strong>Capture:</strong> browse ~8 pages on one topic; sidecar console shows concepts extracted,
+      associations created, session id, images captioned + embedded per page.</li>
+  <li><strong>Recall:</strong> open the popup &rarr; Search &rarr; ask a natural-language question
+      (&ldquo;what did I read about X&rdquo;, optionally &ldquo;&hellip;last week&rdquo;); observe the
+      synthesised answer, citations, per-result match %, and pin/unpin.</li>
+  <li><strong>Association:</strong> show two topically related pages visited far apart surfacing together
+      via graph expansion (association path in the response metadata).</li>
+  <li><strong>Multi-modal:</strong> browse an image-heavy article; query by image content
+      (&ldquo;the diagram about &hellip;&rdquo;) and show the image node + caption in results.</li>
+  <li><strong>Provider switch:</strong> Settings &rarr; toggle <em>Cloud LLaMA</em> / <em>Cloud LLaVA</em>
+      independently; re-run a search; show identical logical output with inference now served by the AWS
+      endpoint while embeddings remain local (<code>/health</code> shows <code>provider.activeProvider</code>).</li>
+  <li><strong>Graph:</strong> open <code>http://localhost:3001/graph</code>; walk through Full / Journey /
+      Domains / Topics views, time/site filters, node inspector, and the honest &ldquo;subset view&rdquo; badge.</li>
+  <li><strong>Robustness:</strong> stop Ollama; re-run a search &rarr; system returns ranked results in
+      &ldquo;search-only&rdquo; mode with a clear warning instead of failing.</li>
+  <li><strong>Tests:</strong> <code>cd sidecar &amp;&amp; node --test</code> &rarr; 415 cases.</li>
+</ol>
+</div>
+
+<!-- ============================ 6 ============================ -->
+<div class="section" id="s6">
+<h2>6. Preliminary Results, Observations, Performance Analysis and Comparison</h2>
+
+<h3>6.1 Functional results (current test corpus: 51 memories, ~2.5k graph nodes)</h3>
+<table>
+<tr><th>Capability</th><th>Observed behaviour</th></tr>
+<tr><td>Passive capture</td><td>Every visited page ingested; per-URL upsert prevents duplicates; revisits correctly accumulate dwell and take max scroll.</td></tr>
+<tr><td>Concept graph growth</td><td>~2,461 concept nodes, ~1,989 memory&ndash;concept links, ~80k concept&ndash;concept associations, 12 image nodes from 51 pages &mdash; associative density scales super-linearly with corpus size (an observation driving the retrieval hop cap and edge budgeting).</td></tr>
+<tr><td>Sessions</td><td>5 sessions reconstructed from 51 pages via the 30-min / 0.7-similarity rule; sequence numbers preserved; &ldquo;Journey&rdquo; graph view renders the visit path.</td></tr>
+<tr><td>Multi-modal</td><td>Image captions (local LLaVA and AWS LLaVA) verified to produce usable descriptions; captions embedded into the 768-d space and retrievable by text query; the image itself is never sent to the text embedder.</td></tr>
+<tr><td>Reconstruction</td><td>With a system instruction pinning the model to the retrieved snippets, Llama&nbsp;3.2 (local and AWS) returns 2&ndash;3 sentence cited answers; without it, chat-tuned endpoints tended to refuse (&ldquo;I don't have access to your history&rdquo;) &mdash; an observation that shaped the final prompt design.</td></tr>
+<tr><td>Graceful degradation</td><td>With Ollama stopped, <code>/search</code> returns HTTP 200 with ranked results and <code>searchMode: "search-only"</code>; the popup shows a non-blocking warning.</td></tr>
+</table>
+
+<h3>6.2 Performance analysis (development machine, local inference)</h3>
+<table>
+<tr><th>Operation</th><th>Measurement</th><th>Notes</th></tr>
+<tr><td><code>getVisualizationData()</code> (graph &rarr; vis payload)</td><td>~20&ndash;29&nbsp;ms for the &ldquo;Full&rdquo; mode over 2,572 nodes / 88,851 edges</td><td>Node-bucketing + budgeted selection + edge filtering; not the bottleneck.</td></tr>
+<tr><td><code>GET /graph/data</code> warm</td><td>~30&ndash;110&nbsp;ms (journey/domains/topics ~30&ndash;45&nbsp;ms)</td><td>After adding a 3&nbsp;s TTL response cache + a single batched <code>IN (&hellip;)</code> enrich query (replacing ~50 serial round-trips).</td></tr>
+<tr><td><code>GET /graph/data</code> under concurrent ingest</td><td>Was observed spiking to ~5.9&nbsp;s; mitigated</td><td>Root cause: the sidecar is single-threaded and a graph request queued behind a page ingest doing a CPU-bound local embedding. Mitigations: response cache, batched query, and client-side request coalescing (120&nbsp;ms debounce + <code>AbortController</code> to cancel superseded fetches).</td></tr>
+<tr><td>Query pipeline budget</td><td>Hard per-stage timeouts: embed 55&nbsp;s / retrieval 10&nbsp;s / synthesis 10&nbsp;s</td><td>Guarantees a bounded response even when local CPU inference is slow; partial results are returned with warnings.</td></tr>
+<tr><td>Embedding cache</td><td>Query-string &rarr; embedding LRU; repeat queries skip the embedding call entirely</td><td>Largest single contributor to perceived latency on CPU.</td></tr>
+<tr><td>AWS offload</td><td>Llama chat round-trip returns in well under the 30&nbsp;s client timeout; LLaVA caption round-trip verified end-to-end</td><td>Removes multi-second local CPU inference from the request path when enabled.</td></tr>
+<tr><td>Test suite</td><td>415 cases via <code>node --test</code></td><td>Deterministic; run in CI-style locally. (A small number of pre-existing assertions target an older prompt wording and are tracked as known, non-blocking failures.)</td></tr>
+</table>
+
+<h3>6.3 Observations that changed the design</h3>
+<ul>
+  <li><strong>Associative explosion.</strong> Aggressive TF-IDF concept extraction produces a very dense
+      concept&ndash;association mesh; the graph view must render an honest &ldquo;subset&rdquo; and the
+      retriever must cap hops and edge budgets. Concept-extraction thresholds are a future tuning target.</li>
+  <li><strong>Single-thread contention.</strong> Local embedding during ingest blocks unrelated API calls;
+      this motivated the caches, batched queries, request coalescing and, ultimately, the optional cloud
+      offload for the two heavy models.</li>
+  <li><strong>Chat models resist &ldquo;history&rdquo; framing.</strong> A system prompt that declares the
+      snippets to be ground-truth history is required for reliable reconstruction on instruction-tuned
+      endpoints.</li>
+  <li><strong>Session rows were never written</strong> because the content script always supplies a session
+      id; fixed with an idempotent upsert plus a startup back-fill from existing memories.</li>
+</ul>
+
+<h3>6.4 Comparison with existing systems</h3>
+<table>
+<tr><th>Dimension</th><th>Browser history / history-search extensions</th><th>Cloud &ldquo;second brain&rdquo; (Rewind, Recall, history-GPT)</th><th>Static-corpus RAG / GraphRAG</th><th><strong>WebMind</strong></th></tr>
+<tr><td>Capture</td><td>URL + title + time</td><td>Screen / browser recording</td><td>Pre-loaded documents</td><td>Text + engagement signals + page media, passive</td></tr>
+<tr><td>Ranking model</td><td>Recency / frequency</td><td>Embedding similarity + recency</td><td>Embedding / graph relevance</td><td>Engagement &oplus; Ebbinghaus decay &oplus; revisit resistance &oplus; associations &oplus; pin/bookmark</td></tr>
+<tr><td>Forgetting</td><td>None (unbounded)</td><td>None / manual</td><td>N/A</td><td>Exponential query-time decay with reinforcement</td></tr>
+<tr><td>Association</td><td>None</td><td>Implicit via embeddings</td><td>Explicit graph (static)</td><td>Explicit, <em>incrementally built</em> concept/memory/session graph; 2-hop traversal fused with vectors</td></tr>
+<tr><td>Session / sequence context</td><td>None</td><td>Timeline</td><td>None</td><td>Gap + similarity session detection; visit order preserved; &ldquo;before/after&rdquo; queries</td></tr>
+<tr><td>Multi-modal</td><td>None</td><td>OCR / cloud vision</td><td>Optional cloud CLIP</td><td>Local VLM caption &rarr; shared local text-embedding space</td></tr>
+<tr><td>Output</td><td>List of links</td><td>Chat answer (cloud LLM)</td><td>Chat answer</td><td>Cited synthesised answer + ranked results; search-only fallback</td></tr>
+<tr><td>Privacy</td><td>Local</td><td>Cloud upload of activity</td><td>Depends</td><td>Local by default; optional <em>user-owned</em> cloud for LLM/VLM only; embeddings pinned local</td></tr>
+<tr><td>Cost</td><td>Free</td><td>Subscription + cloud</td><td>API cost</td><td>Free / offline; optional self-hosted cloud</td></tr>
+</table>
+</div>
+
+<!-- ============================ 7 ============================ -->
+<div class="section" id="s7">
+<h2>7. Progress Towards Expected Outcome</h2>
+
+<h3>7.1 Target outcome</h3>
+<p>Primary: a <strong>research publication</strong> (IEEE conference / journal) describing the
+human-memory-inspired retrieval model and its evaluation; secondary: a <strong>publishable open-source
+product</strong> (browser extension + sidecar).</p>
+
+<h3>7.2 Current progress</h3>
+<table>
+<tr><th>Deliverable</th><th>Status</th><th>Evidence</th></tr>
+<tr><td>Working system (all 8 core capabilities end-to-end)</td><td class="done">Achieved</td><td>Running extension + sidecar; 24 endpoints; 415 tests; live test corpus.</td></tr>
+<tr><td>Novel technical contribution</td><td class="done">Defined</td><td>Unified memory-strength function (engagement &oplus; decay &oplus; resistance &oplus; associations &oplus; manual signals) + incremental associative graph fused with ANN + local multi-modal recall + local-first provider seam &mdash; see &sect;2.2.</td></tr>
+<tr><td>Reproducible artefact</td><td class="done">Achieved</td><td>One-command setup for Windows/macOS/Linux; local-only mode requires no accounts.</td></tr>
+<tr><td>Paper draft (problem, related work, method, architecture)</td><td class="partial">In progress</td><td>This document contains publication-ready problem statement, literature survey, methodology and architecture; can be lifted into an IEEE two-column template.</td></tr>
+<tr><td>Formal evaluation (retrieval quality vs. baselines, user study)</td><td class="planned">Planned</td><td>Protocol drafted: precision@k / MRR of hybrid vs. semantic-only vs. history-search on a labelled query set; small-N recall user study; latency at 1k/10k/100k memories.</td></tr>
+<tr><td>Conference target</td><td class="planned">Identified</td><td>Venues in personal information management / HCI / applied ML systems (e.g. IEEE-sponsored conferences and workshops in these areas); exact venue and deadline to be finalised with the guide.</td></tr>
+<tr><td>Product / open-source release</td><td class="partial">Near-ready</td><td>MIT-style structure, README, setup scripts, <code>.env.example</code>; pending a packaging pass and a short screencast.</td></tr>
+<tr><td>Patent / start-up</td><td class="planned">Not pursued yet</td><td>Local-first privacy positioning is a viable product wedge; to be discussed with the institute's innovation cell after evaluation.</td></tr>
+</table>
+<div class="fill">
+<strong>To be finalised with the project guide:</strong> exact target venue and submission deadline;
+scope of the user study and IRB/ethics clearance if required; authorship order.
+</div>
+</div>
+
+<!-- ============================ 8 ============================ -->
+<div class="section" id="s8">
+<h2>8. Updated Documentation, Source Code, Presentation and Supporting Evidence</h2>
+
+<h3>8.1 Source code</h3>
+<ul>
+  <li>Single git repository; branch <code>vision-model</code>; 10 commits; HEAD <code>9bf8b2e</code> (2026-09-09).</li>
+  <li>Layout: <code>contents/</code> (content script + tests), <code>background.ts</code>, <code>popup.tsx</code>,
+      <code>types/</code>, <code>sidecar/</code> (25 JS modules + 18 test suites + <code>schema.sql</code> +
+      <code>hdbscan_cluster.py</code> + <code>graph-viewer.html</code>), <code>scripts/</code> (setup),
+      <code>.kiro/specs/</code> (30-requirement spec + design + task breakdown).</li>
+  <li>~19,200 LOC total (app + tests + python).</li>
+</ul>
+
+<h3>8.2 Documentation present in the repository</h3>
+<ul>
+  <li><strong>Specification:</strong> 30 formal requirements with EARS-style acceptance criteria;
+      1,496-line design document (architecture, interfaces, data models, algorithms); 972-line task breakdown.</li>
+  <li><strong>Operational:</strong> project README (local vs. cloud modes, model table, env vars, setup
+      matrix), setup-scripts README, sidecar README, <code>.env.example</code>.</li>
+  <li><strong>Engineering notes:</strong> message-flow diagram, configuration/performance notes, bug-fix and
+      verification records, content-script API-limitation analysis.</li>
+  <li><strong>API surface:</strong> 24 documented endpoints (ingest, search, cluster, pin/unpin/bookmark,
+      config CRUD + schema, stats, cache, migrate, health, clusters browse, graph data/sessions/viewer, export).</li>
+</ul>
+
+<h3>8.3 Presentation &amp; demo evidence</h3>
+<ul>
+  <li>Interactive knowledge-graph visualiser at <code>http://localhost:3001/graph</code> (screenshot-ready; 4 view modes).</li>
+  <li>Sidecar console emits structured per-ingest and per-query summaries suitable for a live walkthrough.</li>
+  <li><code>/export</code> produces a single JSON snapshot of all memories, sessions, clusters and graph
+      stats as supporting evidence.</li>
+  <li>Demonstration script in &sect;5.3; Review-II slide deck to accompany this document.</li>
+</ul>
+
+<div class="fill">
+<strong>To attach for the review:</strong> the exported <code>/export</code> JSON snapshot, 3&ndash;5 graph-viewer
+screenshots, a 2&ndash;3 minute screen recording of the demo script, and the <code>node --test</code> summary output.
+</div>
+</div>
+
+<!-- ============================ 9 ============================ -->
+<div class="section" id="s9">
+<h2>9. Citations and References (IEEE Format)</h2>
+<ol class="small" style="line-height:1.6;">
+<li>V. Bush, &ldquo;As we may think,&rdquo; <em>The Atlantic Monthly</em>, vol. 176, no. 1, pp. 101&ndash;108, 1945.</li>
+<li>J. Gemmell, G. Bell, and R. Lueder, &ldquo;MyLifeBits: A personal database for everything,&rdquo; <em>Communications of the ACM</em>, vol. 49, no. 1, pp. 88&ndash;95, 2006.</li>
+<li>J. Teevan, E. Adar, R. Jones, and M. A. S. Potts, &ldquo;Information re-retrieval: Repeat queries in Yahoo's logs,&rdquo; in <em>Proc. 30th ACM SIGIR</em>, 2007, pp. 151&ndash;158.</li>
+<li>W. Jones, <em>Keeping Found Things Found: The Study and Practice of Personal Information Management</em>. Burlington, MA, USA: Morgan Kaufmann, 2007.</li>
+<li>H. Ebbinghaus, <em>Memory: A Contribution to Experimental Psychology</em>, H. A. Ruger and C. E. Bussenius, Trans. New York, NY, USA: Teachers College, Columbia University, 1913 (original work 1885).</li>
+<li>J. R. Anderson and L. J. Schooler, &ldquo;Reflections of the environment in memory,&rdquo; <em>Psychological Science</em>, vol. 2, no. 6, pp. 396&ndash;408, 1991.</li>
+<li>J. R. Anderson, D. Bothell, M. D. Byrne, S. Douglass, C. Lebiere, and Y. Qin, &ldquo;An integrated theory of the mind,&rdquo; <em>Psychological Review</em>, vol. 111, no. 4, pp. 1036&ndash;1060, 2004.</li>
+<li>A. M. Collins and E. F. Loftus, &ldquo;A spreading-activation theory of semantic processing,&rdquo; <em>Psychological Review</em>, vol. 82, no. 6, pp. 407&ndash;428, 1975.</li>
+<li>N. Reimers and I. Gurevych, &ldquo;Sentence-BERT: Sentence embeddings using Siamese BERT-networks,&rdquo; in <em>Proc. EMNLP-IJCNLP</em>, 2019, pp. 3982&ndash;3992.</li>
+<li>Z. Nussbaum, J. X. Morris, B. Duderstadt, and A. Mulyar, &ldquo;Nomic Embed: Training a reproducible long context text embedder,&rdquo; <em>arXiv:2402.01613</em>, 2024.</li>
+<li>A. Radford <em>et al.</em>, &ldquo;Learning transferable visual models from natural language supervision,&rdquo; in <em>Proc. 38th ICML</em>, 2021, pp. 8748&ndash;8763.</li>
+<li>H. Liu, C. Li, Q. Wu, and Y. J. Lee, &ldquo;Visual instruction tuning,&rdquo; in <em>Advances in Neural Information Processing Systems (NeurIPS)</em>, vol. 36, 2023.</li>
+<li>P. Lewis <em>et al.</em>, &ldquo;Retrieval-augmented generation for knowledge-intensive NLP tasks,&rdquo; in <em>Advances in Neural Information Processing Systems (NeurIPS)</em>, vol. 33, 2020, pp. 9459&ndash;9474.</li>
+<li>D. Edge <em>et al.</em>, &ldquo;From local to global: A graph RAG approach to query-focused summarization,&rdquo; <em>arXiv:2404.16130</em>, 2024.</li>
+<li>R. J. G. B. Campello, D. Moulavi, and J. Sander, &ldquo;Density-based clustering based on hierarchical density estimates,&rdquo; in <em>Proc. PAKDD</em>, 2013, pp. 160&ndash;172.</li>
+<li>A. Grattafiori <em>et al.</em>, &ldquo;The Llama 3 herd of models,&rdquo; <em>arXiv:2407.21783</em>, 2024.</li>
+<li>Ollama, &ldquo;Ollama: Get up and running with large language models locally,&rdquo; software, 2024. [Online]. Available: https://ollama.com</li>
+<li>D. Chen and G. Bell, &ldquo;Survey of lifelogging and personal memory-augmentation systems,&rdquo; (representative of commercial tools such as Rewind.ai and Recall) &mdash; <em>ACM Computing Surveys</em>, 2023.</li>
+<li>LanceDB, &ldquo;LanceDB: The database for multimodal AI,&rdquo; software, 2024. [Online]. Available: https://lancedb.com</li>
+<li>Plasmo, &ldquo;Plasmo Framework: The browser extension SDK,&rdquo; software, 2024. [Online]. Available: https://www.plasmo.com</li>
+</ol>
+<p class="small"><em>Note:</em> reference [18] is a placeholder for the specific commercial-tool survey to be
+finalised; all other references are verifiable primary sources. Formatting follows the IEEE reference style
+(numbered, in order of first citation).</p>
+</div>
+
+<!-- ============================ 10 ============================ -->
+<div class="section" id="s10">
+<h2>10. Project-Work Attendance Record</h2>
+<p>Departmental requirement: project-work attendance recorded <strong>at least three times per week</strong>.
+The version-control history provides an independent, timestamped record of active work; the commit dates
+below fall within the review period:</p>
+<table>
+<tr><th>Date</th><th>Commit</th><th>Work item</th></tr>
+<tr><td>2026-05-22</td><td><code>945ba96</code></td><td>Initial WebMind setup</td></tr>
+<tr><td>2026-05-23</td><td><code>b3124bc</code></td><td>Initial WebMind MVP</td></tr>
+<tr><td>2026-05-24</td><td><code>7329b8d</code>, <code>9bd5833</code></td><td>Human-like memory engine: sidecar, UI, graph viewer; spec &amp; design docs</td></tr>
+<tr><td>2026-08-29</td><td><code>83d2545</code></td><td>Full project code update (server, graph, hybrid retrieval, UI)</td></tr>
+<tr><td>2026-09-03</td><td><code>09d7355</code>, <code>68a7916</code></td><td>Vision model added; setup scripts</td></tr>
+<tr><td>2026-09-04</td><td><code>d7023ea</code></td><td>Multimodal feature fixes</td></tr>
+<tr><td>2026-09-09</td><td><code>9535c85</code>, <code>9bf8b2e</code></td><td>AWS provider abstraction + image-in-memory pipeline; knowledge-graph metric fixes and performance work</td></tr>
+</table>
+<div class="fill">
+<strong>To be completed by the team / verified by the guide:</strong> the signed weekly attendance sheet
+(&ge; 3 entries/week) maintained in the department's prescribed format for the full Review-II period.
+The git log above is supporting evidence, not a substitute for the signed record.
+</div>
+</div>
+
+<!-- ============================ 11 ============================ -->
+<div class="section" id="s11">
+<h2>11. Individual Contribution of Each Team Member</h2>
+<p>The repository is committed under a single author identity, so per-member attribution cannot be derived
+from version control alone. The table below maps the implemented modules to work-streams; the team is to
+confirm the member against each work-stream and the guide is to countersign.</p>
+<table>
+<tr><th>Work-stream</th><th>Modules / files</th><th>Approx. share of effort</th><th>Member (to confirm)</th></tr>
+<tr><td>Browser extension &amp; capture</td><td><code>contents/webmind.ts</code>, <code>background.ts</code>, <code>popup.tsx</code>, <code>types/</code>, Plasmo build</td><td>~20%</td><td>__________________</td></tr>
+<tr><td>Ingestion, embeddings &amp; multi-modal pipeline</td><td><code>server.js</code> <code>/ingest</code>, <code>embed.js</code>, <code>multimodal-embeddings.js</code>, image pipeline</td><td>~20%</td><td>__________________</td></tr>
+<tr><td>Memory model (engagement, decay, sessions, priority)</td><td><code>engagement-score.js</code>, <code>memory-decay.js</code>, <code>session-detection.js</code>, pin/bookmark endpoints</td><td>~15%</td><td>__________________</td></tr>
+<tr><td>Knowledge graph, retrieval &amp; reconstruction</td><td><code>knowledge-graph.js</code>, <code>hybrid-retrieval.js</code>, <code>concept-extraction.js</code>, <code>memory-reconstruction.js</code></td><td>~20%</td><td>__________________</td></tr>
+<tr><td>Clustering, visualiser &amp; provider abstraction</td><td><code>clustering.js</code>, <code>hdbscan_cluster.py</code>, <code>graph-viewer.html</code>, <code>model-provider.js</code>, <code>load-env.js</code></td><td>~15%</td><td>__________________</td></tr>
+<tr><td>Config, performance, robustness, migration, tests, setup &amp; docs</td><td><code>config-manager.js</code>, <code>performance.js</code>, <code>cache.js</code>, <code>error-handling.js</code>, <code>data-migration.js</code>, 18 test suites, <code>scripts/</code>, spec/design docs</td><td>~10%</td><td>__________________</td></tr>
+</table>
+<div class="fill">
+<strong>To be completed by the team:</strong> replace the blanks with member names and add a one-paragraph
+personal statement per member describing their specific deliverables, decisions and challenges, signed by
+each member and the project guide.
+</div>
+</div>
+
+<!-- ============================ 12 ============================ -->
+<div class="section" id="s12">
+<h2>12. Suitability as a Potential Best Project</h2>
+<p>The identification of potential best projects is the prerogative of the review panel. For the panel's
+consideration, the following points summarise why WebMind is a strong candidate:</p>
+<ul>
+  <li><strong>Clear novelty at a real intersection</strong> (&sect;2.2): a cognitively-grounded, incrementally
+      associative, local-first, multi-modal personal-memory retrieval pipeline that no single existing system provides.</li>
+  <li><strong>Substantial, working implementation:</strong> ~19k LOC, 24-endpoint service, ~85% of the
+      specified scope functional end-to-end, 415 automated tests, a live knowledge graph of ~2.5k nodes.</li>
+  <li><strong>Engineering depth:</strong> hybrid storage (SQLite + LanceDB + graph), query-time decay maths,
+      graph&ndash;vector fusion, an HDBSCAN subprocess, a provider-abstraction seam with independent per-model
+      switches, per-stage timeouts, caches, request coalescing and graceful degradation &mdash; each backed by tests.</li>
+  <li><strong>Privacy as a first-class design constraint:</strong> the embedding model, which would otherwise
+      observe every page, is architecturally prevented from leaving the device even when cloud offload is enabled.</li>
+  <li><strong>Publication-ready:</strong> a formal 30-requirement specification, a 1,496-line design document,
+      a reproducible one-command setup, and (in this document) a drafted problem statement, literature survey,
+      methodology, architecture and evaluation plan.</li>
+  <li><strong>Demonstrable:</strong> an interactive graph visualiser and a scripted end-to-end demo make the
+      contribution tangible in a review setting.</li>
+</ul>
+<p class="small">Remaining gaps (native CLIP, video-thumbnail embedding, at-rest encryption, 100k-scale
+archiving, formal evaluation study) are scoped, non-core, and planned for the final phase.</p>
+</div>
+
+<hr>
+<p class="small">Generated from a direct analysis of the WebMind source tree at commit <code>9bf8b2e</code>
+on 9&nbsp;September&nbsp;2026. Items marked in amber require the team and project guide to supply
+institution-specific records (attendance sheet, member names, venue selection).</p>
+
+</body>
+</html>

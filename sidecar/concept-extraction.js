@@ -41,6 +41,48 @@ const COMMON_TERMS = new Set([
   'error', 'success', 'warning', 'info', 'message', 'notification', 'alert', 'confirm'
 ]);
 
+// Discourse/adverb filler that TF-IDF sometimes surfaces as "topics" but which
+// make no sense as concept names (e.g. "instead", "however").
+const FILLER_TERMS = new Set([
+  'instead', 'however', 'therefore', 'moreover', 'furthermore', 'meanwhile',
+  'nevertheless', 'otherwise', 'actually', 'basically', 'really', 'simply',
+  'often', 'usually', 'generally', 'typically', 'especially', 'perhaps',
+  'maybe', 'also', 'thus', 'hence', 'overall', 'additionally', 'consequently',
+  'essentially', 'particularly', 'specifically', 'another', 'around', 'along',
+  'without', 'within', 'toward', 'towards', 'something', 'someone', 'anything',
+  'everything', 'nothing', 'much', 'many', 'lot', 'lots', 'way', 'ways', 'thing',
+  'things', 'make', 'makes', 'made', 'making', 'take', 'takes', 'using', 'used',
+  'want', 'need', 'like', 'good', 'great', 'better', 'best'
+]);
+
+// Acronyms that should render uppercase in display names.
+const DISPLAY_ACRONYMS = new Set([
+  'ai', 'ml', 'api', 'css', 'html', 'ui', 'ux', 'sql', 'llm', 'gpu', 'cpu',
+  'os', 'ios', 'nlp', 'rest', 'http', 'https', 'nft', 'aws', 'gcp', 'cdn', 'seo'
+]);
+
+/**
+ * Turn a raw concept token/phrase into a clean, natural-language display name.
+ * Strips leading/trailing stopwords (fixes "The Transformer" -> "Transformer"),
+ * title-cases words, and keeps known acronyms uppercase.
+ */
+function toDisplayName(raw) {
+  let words = String(raw || '')
+    .replace(/[_]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  while (words.length && STOPWORDS.has(words[0].toLowerCase())) words.shift();
+  while (words.length && STOPWORDS.has(words[words.length - 1].toLowerCase())) words.pop();
+  if (words.length === 0) return '';
+  return words
+    .map((w) =>
+      DISPLAY_ACRONYMS.has(w.toLowerCase())
+        ? w.toUpperCase()
+        : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    )
+    .join(' ');
+}
+
 // Technology keywords for TECH entity recognition
 const TECH_KEYWORDS = new Set([
   'javascript', 'typescript', 'python', 'java', 'c++', 'c#', 'ruby', 'php', 'go', 'rust',
@@ -147,7 +189,7 @@ function shouldFilter(token) {
     return true;
   }
   const lower = token.toLowerCase();
-  return STOPWORDS.has(lower) || COMMON_TERMS.has(lower);
+  return STOPWORDS.has(lower) || COMMON_TERMS.has(lower) || FILLER_TERMS.has(lower);
 }
 
 /**
@@ -170,8 +212,14 @@ function extractNamedEntities(text) {
     const capitalizedPattern = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g;
     const matches = sentence.match(capitalizedPattern) || [];
 
-    for (const match of matches) {
-      const words = match.split(/\s+/);
+    for (const rawMatch of matches) {
+      // Strip leading/trailing stopwords so sentence-initial words like
+      // "The Transformer" become "Transformer", not "the_transform".
+      let words = rawMatch.split(/\s+/).filter(Boolean);
+      while (words.length && STOPWORDS.has(words[0].toLowerCase())) words.shift();
+      while (words.length && STOPWORDS.has(words[words.length - 1].toLowerCase())) words.pop();
+      if (words.length === 0) continue;
+      const match = words.join(' ');
       const lastWord = words[words.length - 1].toLowerCase();
 
       // Determine entity type
@@ -289,17 +337,24 @@ function extractConcepts(text, options = {}) {
       continue;
     }
 
-    // Normalize the concept name
+    // Normalize the concept name (used as the stable id / dedup key)
     const normalized = normalizeConcept(concept.name);
-    
+
     // Skip if normalization resulted in empty string or filtered term
     if (!normalized || shouldFilter(normalized)) {
       continue;
     }
 
+    // Human-readable, natural-language name for display + labelling.
+    const display = toDisplayName(concept.name);
+    if (!display) {
+      continue;
+    }
+
     normalizedConcepts.push({
       id: `concept_${normalized}`,
-      name: normalized,
+      name: display,
+      normalizedName: normalized,
       originalName: concept.name,
       type: concept.type,
       confidence: concept.confidence

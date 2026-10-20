@@ -99,7 +99,8 @@ function calculateCentroid(vectors) {
 async function clusterMemoriesWithHDBSCAN(memories, params = {}) {
   const {
     minClusterSize = DEFAULT_PARAMS.minClusterSize,
-    minSamples = DEFAULT_PARAMS.minSamples
+    minSamples = DEFAULT_PARAMS.minSamples,
+    similarityThreshold = DEFAULT_PARAMS.similarityThreshold
   } = params;
 
   if (!memories || memories.length < minClusterSize) {
@@ -123,7 +124,7 @@ async function clusterMemoriesWithHDBSCAN(memories, params = {}) {
     if (!result.success) {
       console.warn('HDBSCAN failed, falling back to simple clustering:', result.error);
       // Fallback to simple similarity-based clustering
-      return clusterMemories(memories, { minClusterSize, similarityThreshold: 0.7 });
+      return clusterMemories(memories, { minClusterSize, similarityThreshold });
     }
 
     // Convert labels to clusters
@@ -214,6 +215,14 @@ function callPythonHDBSCAN(input) {
 
     python.on('error', (error) => {
       reject(new Error(`Failed to spawn Python process: ${error.message}`));
+    });
+
+    // Guard against a broken pipe: if the Python script exits immediately
+    // (e.g. hdbscan not installed), writing to stdin raises EPIPE. Without a
+    // listener this becomes an uncaught 'error' event and crashes the server.
+    // Reject instead so the caller falls back to the built-in clustering.
+    python.stdin.on('error', (error) => {
+      reject(new Error(`Failed to write to Python process: ${error.message}`));
     });
 
     // Send input to Python script
@@ -347,23 +356,122 @@ function extractClusterConcepts(knowledgeGraph, memberIds, topN = 10) {
  * @param {Object} options - Generation options
  * @returns {Promise<string>} Generated label (max 5 words)
  */
+// Known acronyms that should stay uppercase in labels.
+const ACRONYMS = new Set(['ai', 'ml', 'api', 'css', 'html', 'ui', 'ux', 'sql', 'llm', 'gpu', 'cpu', 'os', 'ios']);
+
+// Low-signal tokens that make poor category names.
+const FILLER_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'your', 'you', 'this', 'that', 'these', 'those',
+  'here', 'there', 'from', 'into', 'about', 'also', 'just', 'very', 'really',
+  'actually', 'basically', 'instead', 'forget', 'skip', 'custom', 'more', 'less',
+  'how', 'what', 'when', 'why', 'use', 'using', 'get', 'got', 'make', 'need',
+  'want', 'like', 'good', 'best', 'new', 'dure'
+]);
+
+function titleCaseConcept(name) {
+  return String(name)
+    .replace(/[_-]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) =>
+      ACRONYMS.has(w.toLowerCase())
+        ? w.toUpperCase()
+        : w === w.toUpperCase() && w.length <= 3
+          ? w
+          : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    )
+    .join(' ');
+}
+
+// Keep a concept only if it's a known acronym or a real word (>= 4 chars),
+// and not a filler/function word.
+function isUsefulConcept(name) {
+  const lower = String(name).toLowerCase().trim();
+  if (!lower) return false;
+  if (FILLER_WORDS.has(lower)) return false;
+  if (ACRONYMS.has(lower)) return true;
+  return lower.replace(/[^a-z]/g, '').length >= 4;
+}
+
+/**
+ * Build a human-readable, descriptive label without an LLM.
+ * Joins the top concepts (title-cased, "&" before the last) and, when one
+ * source domain dominates the cluster, appends it as context.
+ *
+ * @param {Array<string>} concepts - Top concepts from cluster
+ * @param {Array<Object>} members - Cluster member memories (with .url)
+ * @returns {string}
+ */
+function buildDescriptiveLabel(concepts, members = []) {
+  const seen = new Set();
+  const useful = (concepts || []).filter(isUsefulConcept);
+  // Fall back to the raw list if filtering removed everything.
+  const source = useful.length > 0 ? useful : (concepts || []);
+  const top = source
+    .map(titleCaseConcept)
+    .filter((c) => c && !seen.has(c.toLowerCase()) && seen.add(c.toLowerCase()))
+    .slice(0, 3);
+
+  if (top.length === 0) return 'Uncategorized Cluster';
+
+  let phrase;
+  if (top.length === 1) phrase = top[0];
+  else phrase = `${top.slice(0, -1).join(', ')} & ${top[top.length - 1]}`;
+
+  // Append a dominant domain if one accounts for at least half the pages.
+  const domainCounts = new Map();
+  for (const m of members) {
+    try {
+      const host = new URL(m.url).hostname.replace(/^www\./, '');
+      domainCounts.set(host, (domainCounts.get(host) || 0) + 1);
+    } catch {
+      /* ignore malformed urls */
+    }
+  }
+  const dominant = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (dominant && members.length > 0 && dominant[1] >= Math.ceil(members.length / 2)) {
+    phrase += ` · ${dominant[0]}`;
+  }
+
+  return phrase;
+}
+
 async function generateClusterLabel(concepts, options = {}) {
   const {
     model = null, // null -> model provider picks the configured local/cloud model
-    maxWords = DEFAULT_PARAMS.maxLabelWords
+    maxWords = DEFAULT_PARAMS.maxLabelWords,
+    members = []
   } = options;
 
-  if (!concepts || concepts.length === 0) {
-    return 'Uncategorized Cluster';
+  // Representative page titles — clean, human-written signal that sharpens the
+  // label and lets us name clusters even when no concepts were extracted.
+  const titles = [...new Set(
+    members
+      .map((m) => (m && typeof m.title === "string" ? m.title.trim() : ""))
+      .filter(Boolean)
+  )].slice(0, 6);
+
+  const haveConcepts = Array.isArray(concepts) && concepts.length > 0;
+
+  // Only truly unnameable (no concepts AND no titles) falls back.
+  if (!haveConcepts && titles.length === 0) {
+    return buildDescriptiveLabel(concepts, members);
   }
 
   try {
-    const prompt = `Given these concepts from a group of related web pages: ${concepts.join(', ')}
+    const conceptLine = haveConcepts
+      ? `Shared concepts: ${concepts.join(', ')}\n`
+      : '';
+    const titleLine = titles.length
+      ? `Page titles in this group:\n${titles.map((t) => `- ${t}`).join('\n')}\n`
+      : '';
 
-Generate a concise label (maximum ${maxWords} words) that describes the main theme or topic of this group.
+    const prompt = `${titleLine}${conceptLine}
+These web pages were grouped together because they are about the same topic.
+Generate a concise label (maximum ${maxWords} words) naming that topic.
 
 The label should be:
-- Clear and descriptive
+- Clear, specific and in natural language
 - Maximum ${maxWords} words
 - Suitable as a category name
 - No quotes or special formatting
@@ -392,12 +500,12 @@ Label:`;
       label = words.slice(0, maxWords).join(' ');
     }
 
-    return label || concepts.slice(0, 3).join(', ');
+    return label || buildDescriptiveLabel(concepts, members);
 
   } catch (error) {
     console.error('Failed to generate cluster label:', error);
-    // Fallback to concept-based label
-    return concepts.slice(0, 3).join(', ');
+    // Fallback to a descriptive concept-based label (no LLM available)
+    return buildDescriptiveLabel(concepts, members);
   }
 }
 
@@ -547,18 +655,24 @@ async function performClustering(params) {
       };
     }
 
-    // Prepare memories with embeddings
-    const memories = allEmbeddings.map(item => ({
-      memoryId: item.memory_id,
-      embedding: item.vector,
-      title: item.title,
-      url: item.url
-    }));
+    // Prepare memories with embeddings. LanceDB returns `vector` as an Apache
+    // Arrow Vector, which does not support plain [i] indexing — convert to a
+    // real number[] so cosineSimilarity works. Skip the all-zero placeholder
+    // row (memory_id 0) created when the table is first initialised.
+    const memories = allEmbeddings
+      .filter(item => item.memory_id && item.memory_id !== 0)
+      .map(item => ({
+        memoryId: item.memory_id,
+        embedding: Array.from(item.vector),
+        title: item.title,
+        url: item.url
+      }));
 
     // Perform clustering (try HDBSCAN first, fallback to simple clustering)
     const clusters = await clusterMemoriesWithHDBSCAN(memories, {
       minClusterSize,
-      minSamples: options.minSamples || DEFAULT_PARAMS.minSamples
+      minSamples: options.minSamples || DEFAULT_PARAMS.minSamples,
+      similarityThreshold
     });
 
     if (clusters.length === 0) {
@@ -570,6 +684,9 @@ async function performClustering(params) {
       };
     }
 
+    // Remove clusters from any previous run so labels don't accumulate.
+    knowledgeGraph.clearClusters();
+
     // Generate labels and store clusters
     const storedClusters = [];
     for (const cluster of clusters) {
@@ -580,8 +697,8 @@ async function performClustering(params) {
         10
       );
 
-      // Generate label
-      const label = await generateClusterLabel(concepts, options);
+      // Generate label (pass members so the fallback can use source domains)
+      const label = await generateClusterLabel(concepts, { ...options, members: cluster.members });
 
       // Store in knowledge graph
       const clusterId = storeCluster(knowledgeGraph, cluster, label);

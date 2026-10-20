@@ -3,42 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Page is already dark-themed; tell the browser and Dark Reader not to
+       re-tint it (that is what shifts the node colors away from the legend). -->
+  <meta name="color-scheme" content="dark" />
+  <meta name="darkreader-lock" />
   <title>WebMind Knowledge Graph</title>
   <script src="/static/vis-network.min.js"></script>
   <style>
+    :root{color-scheme:dark}
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#080c12;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-
-    /* ── Header ── */
-    header{background:#101520;border-bottom:1px solid #1a2235;padding:0 16px;height:48px;display:flex;align-items:center;gap:12px;flex-shrink:0}
-    .brand{font-size:15px;font-weight:700;white-space:nowrap;letter-spacing:-.3px}
-    .brand em{font-style:normal;color:#4299e1}
-    #stats{display:flex;gap:6px;flex-wrap:wrap;flex:1}
-    .pill{background:#151f2e;border:1px solid #1e2d40;border-radius:20px;padding:2px 9px;font-size:11px;color:#8098b8;white-space:nowrap}
-    .pill b{color:#e2e8f0}
-    .hdr-r{display:flex;gap:7px;align-items:center;flex-shrink:0}
+    html,body{color-scheme:dark}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#000;color:#fff;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
     /* ── Filter / control bar ── */
-    .bar{background:#0c1220;border-bottom:1px solid #1a2235;padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
-    .sep{width:1px;height:18px;background:#1e2d40;flex-shrink:0}
+    .bar{background:#000;border-bottom:1px solid #262626;padding:6px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
+    .sep{width:1px;height:18px;background:#333;flex-shrink:0}
     .fg{display:flex;align-items:center;gap:5px}
-    .lbl{font-size:10px;color:#4a6080;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+    .lbl{font-size:10px;color:#9a9a9a;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
 
     /* Tabs */
-    .tabs{display:flex;background:#151f2e;border-radius:5px;padding:2px;gap:2px}
-    .tab{padding:3px 9px;border:none;border-radius:3px;font-size:11px;cursor:pointer;background:transparent;color:#8098b8;transition:all .15s}
-    .tab.on{background:#4299e1;color:#fff}
-    .tab:hover:not(.on){background:#1e2d40;color:#c6d3e6}
+    .tabs{display:flex;background:#141414;border-radius:5px;padding:2px;gap:2px}
+    .tab{padding:3px 9px;border:none;border-radius:3px;font-size:11px;cursor:pointer;background:transparent;color:#ccc;transition:all .15s}
+    .tab.on{background:#fff;color:#000;font-weight:600}
+    .tab:hover:not(.on){background:#1e1e1e;color:#fff}
 
     /* Pills */
     .pills{display:flex;gap:3px}
-    .p-btn{padding:2px 8px;border:1px solid #1e2d40;border-radius:10px;font-size:11px;cursor:pointer;background:transparent;color:#4a6080;transition:all .15s}
-    .p-btn.on{border-color:#4299e1;color:#4299e1;background:rgba(66,153,225,.12)}
-    .p-btn:hover:not(.on){border-color:#2d4060;color:#8098b8}
+    .p-btn{padding:2px 8px;border:1px solid #2a2a2a;border-radius:10px;font-size:11px;cursor:pointer;background:transparent;color:#ccc;transition:all .15s}
+    .p-btn.on{border-color:#fff;color:#000;background:#fff;font-weight:600}
+    .p-btn:hover:not(.on){border-color:#555;color:#fff}
 
     /* Form controls */
-    select,input[type=date],input[type=text],input[type=range]{background:#151f2e;border:1px solid #1e2d40;border-radius:4px;color:#e2e8f0;padding:3px 7px;font-size:11px;outline:none}
-    select:focus,input:focus{border-color:#4299e1}
+    select,input[type=date],input[type=text],input[type=range]{background:#141414;border:1px solid #2a2a2a;border-radius:4px;color:#fff;padding:3px 7px;font-size:11px;outline:none}
+    select:focus,input:focus{border-color:#fff}
     select{min-width:100px}
     input[type=text]{width:120px}
     input[type=date]{width:114px;color-scheme:dark}
@@ -46,86 +43,107 @@
 
     /* Buttons */
     .btn{padding:4px 10px;border:none;border-radius:4px;font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap}
-    .primary{background:#4299e1;color:#fff}.primary:hover{background:#3182ce}
-    .ghost{background:#151f2e;color:#8098b8;border:1px solid #1e2d40}.ghost:hover{background:#1e2d40;color:#c6d3e6}
+    .primary{background:#fff;color:#000;font-weight:600}.primary:hover{background:#ccc}
+    .ghost{background:#141414;color:#ccc;border:1px solid #2a2a2a}.ghost:hover{background:#1e1e1e;color:#fff}
 
     /* Toggle */
     .tgl-wrap{display:flex;align-items:center;gap:5px}
-    .tgl-lbl{font-size:10px;color:#4a6080}
-    .tgl{position:relative;width:28px;height:16px;background:#1e2d40;border-radius:8px;cursor:pointer;border:none;transition:background .2s;flex-shrink:0}
-    .tgl.on{background:#4299e1}
+    .tgl-lbl{font-size:10px;color:#9a9a9a}
+    .tgl{position:relative;width:28px;height:16px;background:#333;border-radius:8px;cursor:pointer;border:none;transition:background .2s;flex-shrink:0}
+    .tgl.on{background:#777}
     .tgl::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s}
     .tgl.on::after{transform:translateX(12px)}
 
     /* ── Progress ── */
-    #prog{height:2px;background:#0c1220;flex-shrink:0}
-    #pfill{height:100%;background:linear-gradient(90deg,#4299e1,#48bb78);width:0%;transition:width .12s}
+    #prog{height:2px;background:#000;flex-shrink:0}
+    #pfill{height:100%;background:linear-gradient(90deg,#555,#fff);width:0%;transition:width .12s}
 
     /* ── Main area ── */
     .main{flex:1;display:flex;min-height:0}
 
     /* Graph */
-    #gwrap{flex:1;position:relative;background:#080c12}
+    #gwrap{flex:1;position:relative;background-color:#080c12;background-image:radial-gradient(rgba(255,255,255,.12) 1.2px, transparent 1.2px);background-size:26px 26px;background-position:-13px -13px}
     #graph{width:100%;height:100%}
 
     /* Overlay */
-    .ovr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:40px;background:rgba(8,12,18,.85);pointer-events:none}
+    .ovr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:40px;background:rgba(0,0,0,.85);pointer-events:none}
     .ovr.h{display:none}
-    .ovr h3{color:#e2e8f0;font-size:15px}.ovr p{font-size:12px;color:#8098b8;max-width:340px;line-height:1.5}
-    .spin{width:28px;height:28px;border:2.5px solid #1e2d40;border-top-color:#4299e1;border-radius:50%;animation:sp .75s linear infinite}
+    .ovr h3{color:#fff;font-size:15px}.ovr p{font-size:12px;color:#9a9a9a;max-width:340px;line-height:1.5}
+    .spin{width:28px;height:28px;border:2.5px solid #333;border-top-color:#fff;border-radius:50%;animation:sp .75s linear infinite}
     @keyframes sp{to{transform:rotate(360deg)}}
 
     /* Stab hint */
-    #shint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(16,21,32,.9);border:1px solid #1e2d40;border-radius:20px;padding:3px 13px;font-size:10px;color:#8098b8;display:none;white-space:nowrap;z-index:10}
+    #shint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.9);border:1px solid #2a2a2a;border-radius:20px;padding:3px 13px;font-size:10px;color:#ccc;display:none;white-space:nowrap;z-index:10}
 
     /* ── Right sidebar ── */
-    #sidebar{width:220px;background:#0c1220;border-left:1px solid #1a2235;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
-    .sb-section{padding:11px 12px;border-bottom:1px solid #1a2235}
-    .sb-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#4a6080;margin-bottom:8px}
+    #sidebar{width:220px;background:#000;border-left:1px solid #262626;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+    .sb-section{padding:11px 12px;border-bottom:1px solid #1e1e1e}
+    .sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#fff;margin-bottom:8px}
     .sb-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px}
-    .sb-key{color:#8098b8}
-    .sb-val{color:#e2e8f0;font-weight:600}
-    .sb-bar-wrap{background:#151f2e;border-radius:4px;height:5px;flex:1;margin-left:8px;overflow:hidden}
+    .sb-key{color:#9a9a9a;display:flex;align-items:center;gap:6px}
+    .sb-toggle{cursor:pointer;padding:2px 4px;margin-left:-4px;margin-right:-4px;border-radius:4px;transition:background .15s}
+    .sb-toggle:hover{background:#1e1e1e}
+    .sb-val{color:#fff;font-weight:700}
+    .sb-bar-wrap{background:#1e1e1e;border-radius:4px;height:5px;flex:1;margin-left:8px;overflow:hidden}
     .sb-bar{height:100%;border-radius:4px;transition:width .3s}
     .domain-item{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;cursor:pointer;padding:3px 5px;border-radius:4px;transition:background .15s}
-    .domain-item:hover{background:#151f2e}
+    .domain-item:hover{background:#1e1e1e}
     .domain-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-    .domain-name{flex:1;color:#a0b4cc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .domain-count{color:#4a6080;font-size:10px}
-    .session-item{margin-bottom:5px;padding:5px 7px;background:#151f2e;border-radius:5px;font-size:11px}
-    .session-time{color:#4a6080;font-size:10px}
-    .session-domains{color:#8098b8;margin-top:2px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .domain-name{flex:1;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .domain-count{color:#777;font-size:10px}
+    #conceptList{display:flex;flex-wrap:wrap;gap:5px}
+    .concept-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#141414;border:1px solid #2a2a2a;border-radius:11px;font-size:11px;color:#fff;cursor:pointer;transition:background .15s,border-color .15s}
+    .concept-chip:hover{background:#1e1e1e;border-color:#555}
+    .concept-chip .c-deg{color:#777;font-size:9px}
+    .session-item{margin-bottom:5px;padding:5px 7px;background:#141414;border:1px solid transparent;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;transition:background .15s,border-color .15s}
+    .session-item:hover{background:#1e1e1e}
+    .session-item.active{background:#fff;border-color:#fff;color:#000}
+    .session-item.active .session-time,.session-item.active .session-domains{color:#333}
+    .session-time{color:#777;font-size:10px}
+    .session-domains{color:#9a9a9a;margin-top:2px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
     /* ── Node detail ── */
-    #detail{position:fixed;bottom:16px;right:235px;width:270px;background:#101520;border:1px solid #1e2d40;border-radius:10px;padding:12px 13px;font-size:12px;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100}
-    #detail h4{font-size:13px;color:#e2e8f0;margin-bottom:6px;line-height:1.3}
-    .dm{color:#8098b8;margin-bottom:3px;line-height:1.4}
-    #dlink{color:#4299e1;text-decoration:none;font-size:10px;display:block;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #detail{position:fixed;bottom:16px;right:235px;width:270px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:10px;padding:12px 13px;font-size:12px;display:none;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100}
+    #detail h4{font-size:13px;color:#fff;margin-bottom:6px;line-height:1.3}
+    .dm{color:#9a9a9a;margin-bottom:3px;line-height:1.4}
+    #dlink{color:#fff;text-decoration:none;font-size:10px;display:block;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     #dlink:hover{text-decoration:underline}
-    #dx{position:absolute;top:7px;right:9px;background:none;border:none;color:#4a6080;cursor:pointer;font-size:15px;line-height:1}
-    #dx:hover{color:#e2e8f0}
+    #dx{position:absolute;top:7px;right:9px;background:none;border:none;color:#888;cursor:pointer;font-size:15px;line-height:1}
+    #dx:hover{color:#fff}
 
-    /* ── Legend ── */
-    #legend{position:absolute;bottom:14px;left:14px;background:rgba(12,18,32,.92);border:1px solid #1e2d40;border-radius:7px;padding:8px 12px;font-size:11px;backdrop-filter:blur(6px)}
-    .li{display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#8098b8}
-    .li:last-child{margin:0}
+    /* ── Cluster popup ── */
+    #clusterPanel{position:fixed;top:52px;right:232px;width:280px;max-height:calc(100vh - 72px);
+      background:#0a0a0a;border:1px solid #2a2a2a;border-radius:16px;padding:14px 15px;
+      display:none;flex-direction:column;gap:6px;box-shadow:0 12px 40px rgba(0,0,0,.65);z-index:120;overflow:hidden}
+    #clusterPanel.show{display:flex}
+    #cp-x{position:absolute;top:9px;right:11px;background:none;border:none;color:#888;cursor:pointer;font-size:17px;line-height:1}
+    #cp-x:hover{color:#fff}
+    #cp-title{font-size:14px;font-weight:700;color:#fff;padding-right:18px;line-height:1.3}
+    #cp-sub{font-size:11px;color:#9a9a9a;margin-bottom:4px}
+    .cp-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#ed8936;margin-top:8px;margin-bottom:5px}
+    .cp-count{color:#777;font-weight:600}
+    .cp-list{display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+    #cp-sites{max-height:42vh}
+    #cp-related{max-height:24vh}
+    .cp-site{display:block;padding:6px 8px;background:#141414;border:1px solid #222;border-radius:8px;text-decoration:none;transition:background .15s,border-color .15s}
+    .cp-site:hover{background:#1c1c1c;border-color:#3a3a3a}
+    .cp-site-title{font-size:11px;color:#eaeaea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cp-site-url{font-size:10px;color:#6f8fb0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cp-rel{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 8px;background:#141414;border:1px solid #222;border-radius:8px;cursor:pointer;transition:background .15s,border-color .15s}
+    .cp-rel:hover{background:#1c1c1c;border-color:#ed8936}
+    .cp-rel-label{font-size:11px;color:#eaeaea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cp-rel-sim{font-size:10px;color:#ed8936;font-weight:600;flex-shrink:0}
+    .cp-empty{font-size:11px;color:#777;padding:2px}
+    #cp-body{display:flex;flex-direction:column;gap:6px;overflow:hidden}
+    .cp-chips{display:flex;flex-wrap:wrap;gap:5px;max-height:46vh;overflow-y:auto}
+    .cp-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#141414;border:1px solid #2a2a2a;border-radius:11px;font-size:11px;color:#eaeaea;white-space:nowrap}
+    .cp-chip .cp-chip-rel{color:#777;font-size:9px}
+
+    /* ── Legend dots (shown inline on Overview rows) ── */
     .ldot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
   </style>
 </head>
 <body>
-
-<header>
-  <div class="brand">Web<em>Mind</em> Graph</div>
-  <div id="stats"><div class="pill">Loading…</div></div>
-  <div class="hdr-r">
-    <div class="tgl-wrap">
-      <button class="tgl on" id="physTgl"></button>
-      <span class="tgl-lbl">Physics</span>
-    </div>
-    <button class="btn ghost" id="fitBtn">Fit</button>
-    <button class="btn primary" id="refreshBtn">Refresh</button>
-  </div>
-</header>
 
 <!-- Filter bar -->
 <div class="bar">
@@ -160,26 +178,41 @@
     <select id="dsel"><option value="">All sites</option></select>
   </div>
   <div class="sep"></div>
-  <div class="fg">
+  <div class="fg" title="Min freq — only show concepts that appear on at least this many of your pages. Higher = fewer, more common concepts (less clutter); lower = more niche, one-off keywords.">
     <span class="lbl">Min freq</span>
-    <input type="range" id="freqSlider" min="1" max="10" value="1" step="1">
-    <span id="freqVal" style="font-size:11px;color:#8098b8;min-width:16px">1</span>
-  </div>
-  <div class="sep"></div>
-  <div class="fg">
-    <span class="lbl">Find</span>
-    <input type="text" id="search" placeholder="Search node…">
+    <input type="range" id="freqSlider" min="1" max="10" value="3" step="1">
+    <span id="freqVal" style="font-size:11px;color:#9a9a9a;min-width:16px">3</span>
   </div>
   <div class="sep"></div>
   <div class="fg">
     <span class="lbl">Show</span>
     <div class="pills" id="typePills">
-      <button class="p-btn on" data-type="concept">Concepts</button>
-      <button class="p-btn on" data-type="memory">Memories</button>
-      <button class="p-btn on" data-type="image">Images</button>
-      <button class="p-btn on" data-type="domain">Domains</button>
-      <button class="p-btn on" data-type="cluster">Clusters</button>
+      <button class="p-btn on" data-type="concept" title="Concepts — topics or keywords pulled from your pages (e.g. “flexbox”, “Kyoto”). Shared concepts are what link related pages together.  ·  Click to show/hide.">Concepts</button>
+      <button class="p-btn on" data-type="memory" title="Memories — the individual web pages you visited. The core items the graph is built from.  ·  Click to show/hide.">Memories</button>
+      <button class="p-btn on" data-type="image" title="Images — pictures found on your pages that got an AI caption, so they’re searchable too.  ·  Click to show/hide.">Images</button>
+      <button class="p-btn on" data-type="domain" title="Domains — the websites your pages came from (e.g. github.com). Shown in the Domains view.  ·  Click to show/hide.">Domains</button>
+      <button class="p-btn on" data-type="cluster" title="Clusters — pages auto-grouped because they’re about the same topic (e.g. all your Lisbon-travel pages). A higher-level summary.  ·  Click to show/hide.">Clusters</button>
     </div>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Links</span>
+    <div class="pills">
+      <button class="p-btn" id="conceptLinksBtn" title="Show concept↔concept association edges (can be very dense)">Concept links</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="fg">
+    <span class="lbl">Find</span>
+    <input type="text" id="search" placeholder="Jump to node…" autocomplete="off">
+  </div>
+  <div class="fg" style="margin-left:auto">
+    <div class="tgl-wrap">
+      <button class="tgl on" id="physTgl"></button>
+      <span class="tgl-lbl">Physics</span>
+    </div>
+    <button class="btn ghost" id="fitBtn">Fit</button>
+    <button class="btn primary" id="refreshBtn">Refresh</button>
   </div>
 </div>
 
@@ -191,14 +224,6 @@
     <div id="graph"></div>
     <div class="ovr" id="ovr"><div class="spin"></div><p>Loading…</p></div>
     <div id="shint">Simulating physics…</div>
-    <div id="legend">
-      <div class="li" data-ltype="concept" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#4299e1"></div> Concept</div>
-      <div class="li" data-ltype="memory" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#48bb78"></div> Memory</div>
-      <div class="li" data-ltype="image" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#ec4899"></div> Image</div>
-      <div class="li" data-ltype="domain" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#9f7aea"></div> Domain</div>
-      <div class="li" data-ltype="cluster" style="cursor:pointer" title="Click to toggle"><div class="ldot" style="background:#ed8936"></div> Cluster</div>
-      <div class="li"><div class="ldot" style="background:#f6ad55;border-radius:0;width:12px;height:2px"></div> Session path</div>
-    </div>
   </div>
 
   <!-- Right sidebar -->
@@ -206,12 +231,20 @@
     <!-- Graph summary -->
     <div class="sb-section">
       <div class="sb-title">Overview</div>
-      <div class="sb-row"><span class="sb-key">Memories</span><span class="sb-val" id="sb-mem">–</span></div>
-      <div class="sb-row"><span class="sb-key">Concepts</span><span class="sb-val" id="sb-con">–</span></div>
-      <div class="sb-row"><span class="sb-key" title="captioned image nodes / total images captured">Images</span><span class="sb-val" id="sb-img">–</span></div>
-      <div class="sb-row"><span class="sb-key">Videos</span><span class="sb-val" id="sb-vid">–</span></div>
-      <div class="sb-row"><span class="sb-key">Sessions</span><span class="sb-val" id="sb-ses">–</span></div>
+      <div class="sb-row sb-toggle" data-ltype="concept" title="Concepts — topics or keywords pulled from your pages (e.g. “flexbox”, “Kyoto”). Shared concepts are what link related pages together.  ·  Click to show/hide."><span class="sb-key"><span class="ldot" style="background:#4299e1"></span>Concepts</span><span class="sb-val" id="sb-con">–</span></div>
+      <div class="sb-row sb-toggle" data-ltype="memory" title="Memories — the individual web pages you visited. The core items the graph is built from.  ·  Click to show/hide."><span class="sb-key"><span class="ldot" style="background:#48bb78"></span>Memories</span><span class="sb-val" id="sb-mem">–</span></div>
+      <div class="sb-row sb-toggle" data-ltype="cluster" title="Clusters — pages auto-grouped because they’re about the same topic (e.g. all your Lisbon-travel pages). A higher-level summary.  ·  Click to show/hide."><span class="sb-key"><span class="ldot" style="background:#ed8936"></span>Clusters</span><span class="sb-val" id="sb-clu">–</span></div>
+      <div class="sb-row sb-toggle" data-ltype="domain" title="Domains — the websites your pages came from (e.g. github.com). Shown in the Domains view.  ·  Click to show/hide."><span class="sb-key"><span class="ldot" style="background:#9f7aea"></span>Domains</span><span class="sb-val" id="sb-dom">–</span></div>
+      <div class="sb-row sb-toggle" data-ltype="image" title="Images — pictures found on your pages that got an AI caption, so they’re searchable too. (shown as captioned / total captured)  ·  Click to show/hide."><span class="sb-key"><span class="ldot" style="background:#ec4899"></span>Images</span><span class="sb-val" id="sb-img">–</span></div>
+      <div class="sb-row" title="Sessions — one browsing session. The orange line traces the order you visited pages (see the Journey view)."><span class="sb-key"><span class="ldot" style="background:#f6ad55;border-radius:0;width:12px;height:2px"></span>Sessions</span><span class="sb-val" id="sb-ses">–</span></div>
+      <div class="sb-row" title="Videos — videos captured from the pages you visited."><span class="sb-key">Videos</span><span class="sb-val" id="sb-vid">–</span></div>
       <div class="sb-row"><span class="sb-key" title="total nodes · edges in the knowledge graph">Graph size</span><span class="sb-val" id="sb-total">–</span></div>
+    </div>
+
+    <!-- Top concepts -->
+    <div class="sb-section" style="flex:1;overflow-y:auto">
+      <div class="sb-title">Top Concepts</div>
+      <div id="conceptList"></div>
     </div>
 
     <!-- Top domains -->
@@ -238,14 +271,73 @@
   <a id="dlink" target="_blank" style="display:none"></a>
 </div>
 
+<!-- Cluster popup: appears just left of the sidebar, near the top -->
+<div id="clusterPanel">
+  <button id="cp-x" title="Close">×</button>
+  <div id="cp-title"></div>
+  <div id="cp-sub"></div>
+  <div id="cp-body"></div>
+</div>
+
 <script>
 const API = "http://localhost:3001";
-let network = null, visNodes = null, allNodes = [], physicsOn = true;
+let network = null, visNodes = null, visEdges = null, allNodes = [];
+// Neighbourhood-highlight state
+let origEdgeColor = new Map();   // edgeId -> original color object
+let hlLocked = false;            // true once a node/session is clicked (sticky)
+// Physics preference persists across refreshes and page reloads.
+let physicsOn = localStorage.getItem("webmind.physics") !== "off";
+
+// Dim everything except the given seed nodes, their neighbours and the edges
+// between them. Used for hover preview and sticky click selection.
+function highlightNeighbourhood(seedIds) {
+  if(!network || !visNodes || !visEdges) return;
+  const keepNodes = new Set(seedIds);
+  const keepEdges = new Set();
+  if(F.mode === "journey") {
+    // Follow the browsing path forward up to 7 pages ("7 nodes ahead").
+    const MAX_AHEAD = 7;
+    const isMem = id => (allNodes.find(n => n.id === id) || {}).group === "memory";
+    const visited = new Set(seedIds);
+    let frontier = [...seedIds];
+    for(let hop = 0; hop < MAX_AHEAD && frontier.length; hop++) {
+      const next = [];
+      frontier.forEach(id => {
+        network.getConnectedEdges(id).forEach(eid => {
+          const e = visEdges.get(eid);
+          if(!e || e.from !== id || !isMem(e.to)) return; // outgoing, page→page only
+          keepEdges.add(eid);
+          keepNodes.add(e.to);
+          if(!visited.has(e.to)) { visited.add(e.to); next.push(e.to); }
+        });
+      });
+      frontier = next;
+    }
+  } else {
+    seedIds.forEach(id => {
+      network.getConnectedNodes(id).forEach(x => keepNodes.add(x));
+      network.getConnectedEdges(id).forEach(x => keepEdges.add(x));
+    });
+  }
+  visNodes.update(visNodes.getIds().map(id => ({ id, opacity: keepNodes.has(id) ? 1 : 0.12 })));
+  visEdges.update([...origEdgeColor].map(([id, color]) => ({
+    id,
+    color: keepEdges.has(id)
+      ? { ...color, opacity: Math.min(1, (color.opacity || 0.5) + 0.4) }
+      : { ...color, opacity: 0.03 }
+  })));
+}
+
+function clearHighlight() {
+  if(!visNodes) return;
+  visNodes.update(visNodes.getIds().map(id => ({ id, opacity: 1 })));
+  if(visEdges) visEdges.update([...origEdgeColor].map(([id, color]) => ({ id, color })));
+}
 // Request coalescing: rapid button clicks each used to fire a fresh /graph/data
 // fetch and pile up behind each other on the single-threaded sidecar.
 let loadSeq = 0, loadAbort = null, loadTimer = null;
 
-const F = { mode: "full", dateFrom: "", dateTo: "", domain: "", minConceptFreq: 1, hiddenTypes: new Set() };
+const F = { mode: "full", dateFrom: "", dateTo: "", domain: "", minConceptFreq: 3, showConceptLinks: false, hiddenTypes: new Set() };
 
 function applyVisibility() {
   if (!visNodes) return;
@@ -258,9 +350,9 @@ function applyVisibility() {
   document.querySelectorAll("#typePills .p-btn[data-type]").forEach(btn => {
     btn.classList.toggle("on", !F.hiddenTypes.has(btn.dataset.type));
   });
-  // sync legend
-  document.querySelectorAll("#legend .li[data-ltype]").forEach(li => {
-    li.style.opacity = F.hiddenTypes.has(li.dataset.ltype) ? "0.35" : "1";
+  // sync overview toggle rows
+  document.querySelectorAll("#sidebar .sb-toggle[data-ltype]").forEach(row => {
+    row.style.opacity = F.hiddenTypes.has(row.dataset.ltype) ? "0.4" : "1";
   });
 }
 
@@ -325,6 +417,7 @@ async function doLoadGraph() {
   showOvr("Fetching graph data…"); setProgress(15);
 
   const p = new URLSearchParams({ limit:"400", mode:F.mode, minConceptFreq:F.minConceptFreq });
+  if(F.showConceptLinks) p.set("showConceptLinks","true");
   if(F.dateFrom) p.set("dateFrom",F.dateFrom);
   if(F.dateTo)   p.set("dateTo",F.dateTo);
   if(F.domain)   p.set("domain",F.domain);
@@ -353,34 +446,54 @@ async function doLoadGraph() {
       if(cur) sel.value=cur;
     }
 
-    // ── Stats pills ───────────────────────────────────────────────────────────
+    // Graph stats (used below for the sidebar Overview)
     const s = data.stats||{};
-    const nodesPill = data.truncated && data.eligibleNodes
-      ? `<div class="pill"><b>${data.nodes.length}</b> / ${data.eligibleNodes} nodes shown</div>`
-      : `<div class="pill"><b>${data.nodes.length}</b> nodes</div>`;
-    const edgesPill = data.edgesTruncated
-      ? `<div class="pill"><b>${data.edges.length}</b> edges (capped)</div>`
-      : `<div class="pill"><b>${data.edges.length}</b> edges</div>`;
-    document.getElementById("stats").innerHTML = [
-      nodesPill,
-      edgesPill,
-      `<div class="pill"><b>${s.concepts||0}</b> concepts</div>`,
-      `<div class="pill"><b>${s.memories||0}</b> memories</div>`,
-      `<div class="pill"><b>${s.images||0}</b> images</div>`,
-      `<div class="pill" title="Total nodes/edges in the knowledge graph"><b>${s.totalNodes||0}</b>·<b>${s.totalEdges||0}</b> graph</div>`,
-      data.truncated ? `<div class="pill" style="color:#f6ad55" title="The view shows only the most-connected subset">subset view</div>` : ""
-    ].join("");
 
     // ── Sidebar stats (SQLite ground truth; graph subset shown alongside) ──────
     const dc = data.dbCounts || {};
     document.getElementById("sb-mem").textContent =
       dc.memories != null ? dc.memories : (s.memories || 0);
     document.getElementById("sb-con").textContent = s.concepts || 0;
+    document.getElementById("sb-clu").textContent = s.clusters || 0;
+    document.getElementById("sb-dom").textContent =
+      new Set((data.nodes || []).map(n => n.domain).filter(Boolean)).size || 0;
     document.getElementById("sb-img").textContent =
       dc.images != null ? `${s.images || 0} / ${dc.images}` : (s.images || 0);
     document.getElementById("sb-vid").textContent = dc.videos != null ? dc.videos : "–";
     document.getElementById("sb-total").textContent =
       `${data.totalNodes || data.nodes.length} · ${(s.totalEdges || 0)}`;
+
+    // Legend ↔ graph consistency: only show node-type rows that actually appear
+    // in the current view (e.g. domains only exist in the Domains view).
+    const present = new Set((data.nodes || []).map(n => n.group));
+    document.querySelectorAll("#sidebar .sb-toggle[data-ltype]").forEach(row => {
+      row.style.display = present.has(row.dataset.ltype) ? "" : "none";
+    });
+
+    // ── Sidebar top concepts ──────────────────────────────────────────────────
+    const conList = document.getElementById("conceptList");
+    conList.innerHTML = "";
+    const concepts = (data.nodes || [])
+      .filter(n => n.group === "concept")
+      .sort((a, b) => (b.degree || 0) - (a.degree || 0))
+      .slice(0, 15);
+    if(concepts.length) {
+      concepts.forEach(c => {
+        const chip = document.createElement("div");
+        chip.className = "concept-chip";
+        chip.innerHTML = `<span>${c.label || c.id}</span>` +
+          (c.degree ? `<span class="c-deg">${c.degree}</span>` : "");
+        chip.title = `Focus "${c.label || c.id}" in the graph`;
+        chip.onclick = () => {
+          if(!network) return;
+          network.selectNodes([c.id]);
+          network.focus(c.id, {scale:1.1, animation:{duration:500, easingFunction:"easeInOutQuad"}});
+        };
+        conList.appendChild(chip);
+      });
+    } else {
+      conList.innerHTML = `<div style="color:#4a6080;font-size:11px">No concepts yet.</div>`;
+    }
 
     // ── Sidebar domains ───────────────────────────────────────────────────────
     const domList = document.getElementById("domainList");
@@ -411,9 +524,23 @@ async function doLoadGraph() {
         const ts = d.toLocaleDateString()+" "+d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
         const div = document.createElement("div");
         div.className = "session-item";
-        div.innerHTML = `<div style="color:#c6d3e6;font-size:11px">${ses.memoryCount} pages</div>
+        div.innerHTML = `<div style="font-size:11px;font-weight:600">${ses.memoryCount} pages</div>
           <div class="session-time">${ts}</div>
           <div class="session-domains">${ses.domains.join(" · ")||"—"}</div>`;
+        div.onclick = () => {
+          if(!network) return;
+          const ids = allNodes.filter(n => n.sessionId === ses.id).map(n => n.id);
+          document.querySelectorAll("#sessionList .session-item").forEach(el=>el.classList.remove("active"));
+          if(!ids.length){
+            div.title = "No nodes from this session are in the current view";
+            return;
+          }
+          div.classList.add("active");
+          hlLocked = true;
+          highlightNeighbourhood(ids);
+          network.selectNodes(ids);
+          network.fit({ nodes: ids, animation:{ duration:600, easingFunction:"easeInOutQuad" } });
+        };
         sesList.appendChild(div);
       });
     } catch {}
@@ -431,8 +558,7 @@ async function doLoadGraph() {
   } catch(err) {
     if(err.name === "AbortError" || stale()) return; // superseded by a newer click
     setProgress(0);
-    document.getElementById("stats").innerHTML=`<div class="pill" style="color:#fc8181">Error: ${err.message}</div>`;
-    showOvr(`<h3>Could not load graph</h3><p>Is the sidecar running on port 3001?</p>`,false);
+    showOvr(`<h3>Could not load graph</h3><p>Error: ${err.message}<br>Is the sidecar running on port 3001?</p>`,false);
   }
 }
 
@@ -456,26 +582,21 @@ function renderNetwork(data) {
   const labelThreshold = maxDeg * 0.2;
 
   visNodes = new vis.DataSet(data.nodes.map(n => {
-    let color = n.color;
-
-    // Domain-colored memory nodes in journey/domains mode
-    if((F.mode==="journey"||F.mode==="domains") && n.group==="memory" && n.domain) {
-      const dc = dColor(n.domain);
-      const alpha = n.timestamp ? recencyAlpha(n.timestamp) : 0.7;
-      color = { background: dc, border: dc, opacity: alpha };
-    }
-
+    // Every node keeps its type color in every view, so the legend always
+    // matches the graph (no per-site recoloring of memories).
     return {
       ...n,
-      color,
+      color: n.color,
       hidden: F.hiddenTypes.has(n.group || ""),
       label: (n.degree||0) >= labelThreshold ? (n.label||"") : "",
       _fullLabel: n.label||n.id,
       _domain: n.domain
     };
   }));
-  const visEdges = new vis.DataSet(data.edges);
+  visEdges = new vis.DataSet(data.edges);
   allNodes = data.nodes;
+  origEdgeColor = new Map(data.edges.map(e => [e.id, e.color]));
+  hlLocked = false;
 
   setProgress(68);
 
@@ -486,6 +607,9 @@ function renderNetwork(data) {
   network = new vis.Network(container, {nodes:visNodes,edges:visEdges}, {
     nodes:{
       shape:"dot",borderWidth:1.5,borderWidthSelected:3,
+      // Never let vis-network recolor nodes on hover/select — selection feedback
+      // comes from the neighbourhood dimming instead.
+      chosen:false,
       font:{size:10,color:"#e2e8f0",strokeWidth:2,strokeColor:"#080c12"}
     },
     edges:{
@@ -496,33 +620,69 @@ function renderNetwork(data) {
     interaction:{
       hover:true,tooltipDelay:120,hideEdgesOnDrag:true,
       multiselect:false,navigationButtons:false,
+      zoomView:false, // replaced with center-anchored wheel zoom below
       keyboard:{enabled:true,speed:{x:10,y:10,zoom:.02}}
     },
-    physics: physicsOn ? { enabled:true, ...physConf } : { enabled:false }
+    // Always run a force-directed layout pass so nodes spread out instead of
+    // sitting in a ring. If the user's physics preference is "off", we freeze
+    // the simulation once it settles (below) — giving a good static layout.
+    physics: { enabled:true, ...physConf }
   });
 
   // Stab progress
   const hint = document.getElementById("shint");
   hint.style.display = "block";
-  hint.textContent = "Simulating physics…";
+  hint.textContent = "Laying out graph…";
 
+  let settled = false;
   const onDone = () => {
+    if(settled) return;
+    settled = true;
     hint.style.display = "none";
     setProgress(100); setTimeout(()=>setProgress(0),700);
+    // Freeze the layout when physics is toggled off so it stays put.
+    if(!physicsOn) network.setOptions({ physics:{ enabled:false } });
     network.fit({ animation:{ duration:600, easingFunction:"easeInOutQuad" } });
   };
   network.on("stabilizationProgress",({iterations,total}) => {
-    hint.textContent = `Simulating… ${Math.round(iterations/total*100)}%`;
+    hint.textContent = `Laying out… ${Math.round(iterations/total*100)}%`;
     setProgress(68+Math.round(iterations/total*30));
   });
   network.on("stabilizationIterationsDone", onDone);
   network.on("stabilized", onDone);
 
-  // Click → detail panel
+  // Hover → preview neighbourhood highlight (unless a selection is locked)
+  network.on("hoverNode", p => { if(!hlLocked) highlightNeighbourhood([p.node]); });
+  network.on("blurNode",  () => { if(!hlLocked) clearHighlight(); });
+
+  // Click → lock neighbourhood highlight + detail panel; empty click clears it
   network.on("click", params => {
-    if(!params.nodes.length){ document.getElementById("detail").style.display="none"; return; }
-    const node = allNodes.find(n=>n.id===params.nodes[0]);
-    if(node) showDetail(node);
+    if(!params.nodes.length){
+      hlLocked = false;
+      clearHighlight();
+      document.querySelectorAll("#sessionList .session-item.active").forEach(el=>el.classList.remove("active"));
+      document.getElementById("detail").style.display="none";
+      hideClusterPanel();
+      return;
+    }
+    const id = params.nodes[0];
+    hlLocked = true;
+    highlightNeighbourhood([id]);
+    const node = allNodes.find(n=>n.id===id);
+    if(!node) return;
+    if(node.group === "cluster"){
+      document.getElementById("detail").style.display="none";
+      showClusterPanel(node.id, node._fullLabel || node.label);
+    } else if(node.group === "memory"){
+      document.getElementById("detail").style.display="none";
+      showMemoryPanel(node);
+    } else if(node.group === "domain"){
+      document.getElementById("detail").style.display="none";
+      showDomainPanel(node);
+    } else {
+      hideClusterPanel();
+      showDetail(node);
+    }
   });
   // Double-click → open URL
   network.on("doubleClick", params => {
@@ -563,18 +723,139 @@ function showDetail(node) {
   else lnk.style.display="none";
 }
 
-// ── Event wiring ──────────────────────────────────────────────────────────────
+function hideClusterPanel() {
+  document.getElementById("clusterPanel").classList.remove("show");
+}
 
-document.getElementById("search").addEventListener("input", e => {
-  if(!network||!allNodes.length) return;
-  const q = e.target.value.toLowerCase().trim();
-  if(!q){ network.unselectAll(); return; }
-  const hit = allNodes.filter(n=>((n._fullLabel||n.label||"")+"|"+(n.url||"")).toLowerCase().includes(q)).map(n=>n.id);
-  if(hit.length){ network.selectNodes(hit); network.fit({nodes:hit,animation:true}); }
-});
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u || ""; } };
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+// Open the popup with a title/subtitle and a "Loading…" body.
+function openPanel(title, sub) {
+  document.getElementById("clusterPanel").classList.add("show");
+  document.getElementById("cp-title").textContent = title || "";
+  document.getElementById("cp-sub").textContent = sub || "";
+  document.getElementById("cp-body").innerHTML = `<div class="cp-empty">Loading…</div>`;
+}
+function panelError(msg) {
+  document.getElementById("cp-body").innerHTML = `<div class="cp-empty">${esc(msg)}</div>`;
+}
+// Build a titled section containing rows (array of HTML strings or {html, onclick}).
+function panelSection(title, rows, listClass) {
+  const wrap = document.createElement("div");
+  const h = document.createElement("div");
+  h.className = "cp-section-title";
+  h.textContent = title;
+  wrap.appendChild(h);
+  const list = document.createElement("div");
+  list.className = listClass || "cp-list";
+  if(!rows || !rows.length){
+    list.innerHTML = `<div class="cp-empty">None found.</div>`;
+  } else {
+    rows.forEach(r => {
+      if(typeof r === "string"){ list.insertAdjacentHTML("beforeend", r); return; }
+      const el = document.createElement("div");
+      el.className = r.cls || "cp-rel";
+      el.innerHTML = r.html;
+      if(r.title) el.title = r.title;
+      if(r.onclick){ el.style.cursor = "pointer"; el.onclick = r.onclick; }
+      list.appendChild(el);
+    });
+  }
+  wrap.appendChild(list);
+  return wrap;
+}
+
+// Focus a node in the graph (if it's on screen) and lock its highlight.
+function focusNode(id) {
+  if(network && visNodes && visNodes.get(id)){
+    hlLocked = true;
+    highlightNeighbourhood([id]);
+    network.selectNodes([id]);
+    network.focus(id, { scale:1.1, animation:{ duration:500, easingFunction:"easeInOutQuad" } });
+  }
+}
+
+const siteRow = m =>
+  `<a class="cp-site" href="${esc(m.url)}" target="_blank" rel="noopener" title="${esc(m.url)}">` +
+  `<div class="cp-site-title">${esc(m.title || m.url || "Untitled")}</div>` +
+  `<div class="cp-site-url">${esc(hostOf(m.url))}</div></a>`;
+
+// ── Cluster → websites + related clusters ──
+async function showClusterPanel(clusterId, fallbackLabel) {
+  openPanel(fallbackLabel || "Cluster", "Loading…");
+  try {
+    const [det, mem] = await Promise.all([
+      fetch(`${API}/clusters/${encodeURIComponent(clusterId)}`).then(r => r.json()),
+      fetch(`${API}/clusters/${encodeURIComponent(clusterId)}/memories`).then(r => r.json())
+    ]);
+    const cluster = det.cluster || {}, related = det.related || [], memories = mem.memories || [];
+    const n = cluster.size ?? memories.length;
+    document.getElementById("cp-title").textContent = cluster.label || fallbackLabel || "Cluster";
+    document.getElementById("cp-sub").textContent = `${n} page${n === 1 ? "" : "s"} in this cluster`;
+
+    const body = document.getElementById("cp-body");
+    body.innerHTML = "";
+    body.appendChild(panelSection(`Websites (${memories.length})`, memories.map(siteRow)));
+    body.appendChild(panelSection("Related clusters", related.map(rc => ({
+      html: `<span class="cp-rel-label">${esc(rc.label || rc.id)}</span>` +
+        (rc.similarity != null ? `<span class="cp-rel-sim">${Math.round(rc.similarity*100)}%</span>` : ""),
+      title: `Open “${rc.label}”`,
+      onclick: () => { focusNode(rc.id); showClusterPanel(rc.id, rc.label); }
+    }))));
+  } catch { panelError("Failed to load cluster."); }
+}
+
+// ── Memory → concepts derived from it ──
+async function showMemoryPanel(node) {
+  openPanel(node._fullLabel || node.label || "Page", hostOf(node.url || node.domain));
+  try {
+    const data = await fetch(`${API}/memories/${encodeURIComponent(node.id)}/concepts`).then(r => r.json());
+    const concepts = data.concepts || [];
+    document.getElementById("cp-sub").textContent =
+      `${concepts.length} concept${concepts.length === 1 ? "" : "s"} derived${node.domain ? " · " + hostOf(node.domain) : ""}`;
+
+    const body = document.getElementById("cp-body");
+    body.innerHTML = "";
+    if(node.url){
+      body.appendChild(panelSection("Page", [siteRow({ title: node._fullLabel || node.label, url: node.url })]));
+    }
+    const chips = concepts.map(c => {
+      const el = document.createElement("span");
+      el.className = "cp-chip";
+      el.innerHTML = `<span>${esc(c.name || c.id)}</span>` +
+        (c.relevance != null ? `<span class="cp-chip-rel">${Math.round(c.relevance*100)}%</span>` : "");
+      if(visNodes && visNodes.get(c.id)){ el.style.cursor = "pointer"; el.title = "Focus in graph"; el.onclick = () => focusNode(c.id); }
+      return el;
+    });
+    const sec = panelSection(`Concepts (${concepts.length})`, [], "cp-chips");
+    const list = sec.querySelector(".cp-chips");
+    if(chips.length){ list.innerHTML = ""; chips.forEach(c => list.appendChild(c)); }
+    body.appendChild(sec);
+  } catch { panelError("Failed to load concepts."); }
+}
+
+// ── Domain → memories (pages) linked to it ──
+async function showDomainPanel(node) {
+  const host = node._fullLabel || node.label || node.domain || "Site";
+  openPanel(host, "Loading…");
+  try {
+    const data = await fetch(`${API}/domains/${encodeURIComponent(node.id)}/memories`).then(r => r.json());
+    const memories = data.memories || [];
+    document.getElementById("cp-sub").textContent = `${memories.length} page${memories.length === 1 ? "" : "s"} from this site`;
+    const body = document.getElementById("cp-body");
+    body.innerHTML = "";
+    body.appendChild(panelSection(`Pages (${memories.length})`, memories.map(siteRow)));
+  } catch { panelError("Failed to load pages."); }
+}
+
+document.getElementById("cp-x").addEventListener("click", hideClusterPanel);
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
 
 document.getElementById("physTgl").addEventListener("click", function(){
   physicsOn = !physicsOn;
+  localStorage.setItem("webmind.physics", physicsOn ? "on" : "off");
   this.classList.toggle("on", physicsOn);
   if(network){
     if(physicsOn){
@@ -631,6 +912,28 @@ document.getElementById("freqSlider").addEventListener("input", e=>{
   clearTimeout(freqTimer); freqTimer=setTimeout(loadGraph, 400);
 });
 
+// Concept↔concept links toggle (off by default to keep the graph readable)
+document.getElementById("conceptLinksBtn").addEventListener("click", function(){
+  F.showConceptLinks = !F.showConceptLinks;
+  this.classList.toggle("on", F.showConceptLinks);
+  loadGraph();
+});
+
+// Find / jump-to-node: select the best match and fly the camera to it
+document.getElementById("search").addEventListener("input", e => {
+  if(!network || !allNodes.length) return;
+  const q = e.target.value.toLowerCase().trim();
+  if(!q){ network.unselectAll(); if(!hlLocked) clearHighlight(); return; }
+  const hits = allNodes.filter(n => ((n._fullLabel||n.label||"")+"|"+(n.url||"")).toLowerCase().includes(q));
+  if(!hits.length) return;
+  // Prefer the most-connected match
+  hits.sort((a,b)=>(b.degree||0)-(a.degree||0));
+  const ids = hits.slice(0,12).map(n=>n.id);
+  network.selectNodes(ids);
+  highlightNeighbourhood([hits[0].id]);
+  network.focus(hits[0].id, { scale:1.1, animation:{ duration:500, easingFunction:"easeInOutQuad" } });
+});
+
 // Node type visibility toggles (pills)
 document.querySelectorAll("#typePills .p-btn[data-type]").forEach(btn => {
   btn.addEventListener("click", function() {
@@ -641,15 +944,29 @@ document.querySelectorAll("#typePills .p-btn[data-type]").forEach(btn => {
   });
 });
 
-// Legend items also toggle
-document.querySelectorAll("#legend .li[data-ltype]").forEach(li => {
-  li.addEventListener("click", function() {
+// Overview rows also toggle their node type
+document.querySelectorAll("#sidebar .sb-toggle[data-ltype]").forEach(row => {
+  row.addEventListener("click", function() {
     const t = this.dataset.ltype;
     if (F.hiddenTypes.has(t)) F.hiddenTypes.delete(t);
     else F.hiddenTypes.add(t);
     applyVisibility();
   });
 });
+
+// Reflect the persisted physics preference on the toggle button.
+document.getElementById("physTgl").classList.toggle("on", physicsOn);
+
+// Center-anchored wheel zoom: keep the view centered while zooming, so the
+// graph never drifts off to a corner. Panning (drag) still moves it freely.
+document.getElementById("graph").addEventListener("wheel", e => {
+  if(!network) return;
+  e.preventDefault();
+  const scale  = network.getScale();
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  const next   = Math.min(4, Math.max(0.05, scale * factor));
+  network.moveTo({ scale: next, position: network.getViewPosition() });
+}, { passive:false });
 
 loadGraph();
 </script>

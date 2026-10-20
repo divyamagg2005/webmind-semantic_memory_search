@@ -88,92 +88,154 @@ interface ProviderStatus {
   embeddings: { activeProvider: string }
 }
 
+const BLUE = "#2563eb"
+const BLUE_DARK = "#1d4ed8"
+const BLUE_SOFT = "#eff6ff"
+const BLUE_BORDER = "#bfdbfe"
+const NEON = "0 0 0 2px rgba(37,99,235,0.25), 0 0 14px 2px rgba(37,99,235,0.55)"
+
 const styles = {
   container: {
-    padding: 16,
+    padding: 18,
     width: 480,
+    boxSizing: "border-box" as const,
     fontFamily: "system-ui, Arial, sans-serif",
     maxHeight: 600,
     overflow: "auto" as const,
-    fontSize: 13
+    fontSize: 13,
+    color: "#1e3a5f",
+    background: "linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%)"
   },
-  tabs: {
+  header: {
+    position: "relative" as const,
+    textAlign: "center" as const,
+    marginBottom: 14
+  },
+  brand: {
+    margin: 0,
+    fontFamily: '"Sankofa Display", system-ui, sans-serif',
+    fontWeight: 400,
+    fontSize: 34,
+    letterSpacing: 1,
+    color: BLUE,
+    lineHeight: 1.1
+  },
+  gear: (active: boolean) => ({
+    position: "absolute" as const,
+    top: 2,
+    right: 0,
+    width: 34,
+    height: 34,
     display: "flex",
-    gap: 4,
-    marginBottom: 16,
-    borderBottom: "1px solid #dee2e6"
-  },
-  tab: (active: boolean) => ({
-    flex: 1,
-    padding: "8px 4px",
-    border: "none",
-    background: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    border: `1px solid ${active ? BLUE : BLUE_BORDER}`,
+    borderRadius: "50%",
+    background: active ? BLUE : "#fff",
+    color: active ? "#fff" : BLUE,
     cursor: "pointer",
-    fontWeight: active ? 600 : 400,
-    color: active ? "#007bff" : "#666",
-    borderBottom: active ? "2px solid #007bff" : "2px solid transparent",
-    marginBottom: -1
+    boxShadow: active ? NEON : "none",
+    transition: "all 0.18s ease"
+  }),
+  pills: {
+    display: "flex",
+    gap: 8,
+    justifyContent: "center",
+    marginBottom: 18
+  },
+  pill: (active: boolean) => ({
+    flex: 1,
+    padding: "9px 4px",
+    borderRadius: 999,
+    border: `1px solid ${active ? BLUE : BLUE_BORDER}`,
+    background: active ? BLUE : "#fff",
+    color: active ? "#fff" : BLUE,
+    cursor: "pointer",
+    fontWeight: 600,
+    fontSize: 13,
+    boxShadow: active ? NEON : "none",
+    transition: "all 0.18s ease"
   }),
   input: {
     width: "100%",
-    padding: 10,
+    padding: 12,
     marginBottom: 8,
-    border: "1px solid #ccc",
-    borderRadius: 4,
+    border: `1px solid ${BLUE_BORDER}`,
+    borderRadius: 14,
     fontSize: 14,
-    boxSizing: "border-box" as const
+    boxSizing: "border-box" as const,
+    outline: "none",
+    background: "#fff"
   },
-  btn: (color = "#007bff", disabled = false) => ({
-    padding: "10px 12px",
+  btn: (color = BLUE, disabled = false) => ({
+    padding: "11px 12px",
     width: "100%",
     cursor: disabled ? "wait" : "pointer",
     backgroundColor: color,
     color: "white",
     border: "none",
-    borderRadius: 4,
+    borderRadius: 14,
     fontSize: 13,
     fontWeight: 600,
     opacity: disabled ? 0.6 : 1,
-    marginBottom: 8
+    marginBottom: 8,
+    boxShadow: disabled ? "none" : "0 2px 8px rgba(37,99,235,0.25)"
   }),
   card: (highlight = false) => ({
-    border: `1px solid ${highlight ? "#ffc107" : "#dee2e6"}`,
+    border: `1px solid ${highlight ? BLUE : BLUE_BORDER}`,
     padding: 12,
     marginBottom: 10,
-    borderRadius: 6,
-    backgroundColor: highlight ? "#fffbf0" : "#fff",
+    borderRadius: 16,
+    backgroundColor: highlight ? BLUE_SOFT : "#fff",
+    boxShadow: "0 1px 6px rgba(37,99,235,0.08)",
     position: "relative" as const
   }),
   error: {
-    padding: 10,
+    padding: 11,
     marginBottom: 10,
-    backgroundColor: "#f8d7da",
-    color: "#721c24",
+    backgroundColor: "#fdecee",
+    color: "#a12a3a",
     border: "1px solid #f5c6cb",
-    borderRadius: 4,
+    borderRadius: 14,
     fontSize: 12
   },
   warning: {
-    padding: 10,
+    padding: 11,
     marginBottom: 10,
-    backgroundColor: "#fff3cd",
-    color: "#856404",
+    backgroundColor: "#fff8e6",
+    color: "#8a6d1a",
     border: "1px solid #ffeeba",
-    borderRadius: 4,
+    borderRadius: 14,
     fontSize: 12
   },
   synthesis: {
-    padding: 12,
+    padding: 14,
     marginBottom: 12,
-    backgroundColor: "#e8f4fd",
-    border: "1px solid #b8daff",
-    borderRadius: 6,
+    backgroundColor: BLUE_SOFT,
+    border: `1px solid ${BLUE_BORDER}`,
+    borderRadius: 16,
     fontSize: 13,
     lineHeight: 1.5
   },
   label: { display: "block", marginBottom: 4, fontWeight: 500, fontSize: 12 },
   fieldRow: { marginBottom: 10 }
 }
+
+const ArrowIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </svg>
+)
+
+const GearIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+)
 
 function IndexPopup() {
   const [tab, setTab] = useState<Tab>("search")
@@ -194,7 +256,37 @@ function IndexPopup() {
   const [configErrors, setConfigErrors] = useState<string[]>([])
 
   const [graphStats, setGraphStats] = useState<GraphStats | null>(null)
-  const [topConcepts, setTopConcepts] = useState<{ label: string; id: string }[]>([])
+
+  useEffect(() => {
+    const defs: Partial<HTMLLinkElement>[] = [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Bowlby+One&family=Sankofa+Display&display=swap"
+      }
+    ]
+    const els = defs.map((d) => {
+      const el = document.createElement("link")
+      Object.assign(el, d)
+      document.head.appendChild(el)
+      return el
+    })
+
+    const style = document.createElement("style")
+    style.textContent = `
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+      @keyframes wm-spin { to { transform: rotate(360deg); } }
+    `
+    document.head.appendChild(style)
+    els.push(style as unknown as HTMLLinkElement)
+
+    return () => els.forEach((el) => el.remove())
+  }, [])
 
   useEffect(() => {
     fetch(`${API}/health`)
@@ -385,11 +477,6 @@ function IndexPopup() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to load graph")
       setGraphStats(data.stats)
-      const concepts = (data.nodes || [])
-        .filter((n: { group: string }) => n.group === "concept")
-        .slice(0, 15)
-        .map((n: { label: string; id: string }) => ({ label: n.label, id: n.id }))
-      setTopConcepts(concepts)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load graph")
     } finally {
@@ -411,7 +498,16 @@ function IndexPopup() {
 
   return (
     <div style={styles.container}>
-      <h1 style={{ margin: "0 0 12px 0", fontSize: 18 }}>WebMind</h1>
+      <div style={styles.header}>
+        <h1 style={styles.brand}>WEBMIND</h1>
+        <button
+          style={styles.gear(tab === "settings")}
+          onClick={() => setTab("settings")}
+          title="Settings"
+          aria-label="Settings">
+          <GearIcon />
+        </button>
+      </div>
 
       {ollamaAvailable === false && (
         <div style={styles.warning}>
@@ -419,9 +515,9 @@ function IndexPopup() {
         </div>
       )}
 
-      <div style={styles.tabs}>
-        {(["search", "clusters", "graph", "settings"] as Tab[]).map((t) => (
-          <button key={t} style={styles.tab(tab === t)} onClick={() => setTab(t)}>
+      <div style={styles.pills}>
+        {(["search", "clusters", "graph"] as Tab[]).map((t) => (
+          <button key={t} style={styles.pill(tab === t)} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
@@ -431,25 +527,57 @@ function IndexPopup() {
 
       {tab === "search" && (
         <>
-          <textarea
-            placeholder="What are you trying to recall? Describe it naturally — include timing if you remember (e.g. 'that article about React hooks I read yesterday')"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), searchMemories())}
-            style={{
-              ...styles.input,
-              height: 72,
-              resize: "none" as const,
-              lineHeight: 1.5,
-              fontFamily: "inherit"
-            }}
-          />
-          <button
-            onClick={searchMemories}
-            disabled={loading || !query.trim()}
-            style={styles.btn("#007bff", loading || !query.trim())}>
-            {loading ? "Searching memories…" : "Recall"}
-          </button>
+          <div style={{ position: "relative", marginBottom: 8 }}>
+            <textarea
+              placeholder="What are you trying to recall? Describe it naturally — include timing if you remember (e.g. 'that article about React hooks I read yesterday')"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), searchMemories())}
+              style={{
+                ...styles.input,
+                height: 84,
+                marginBottom: 0,
+                paddingRight: 58,
+                resize: "none" as const,
+                lineHeight: 1.5,
+                fontFamily: "inherit"
+              }}
+            />
+            <button
+              onClick={searchMemories}
+              disabled={loading || !query.trim()}
+              title="Recall"
+              aria-label="Recall"
+              style={{
+                position: "absolute",
+                right: 10,
+                bottom: 10,
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                border: "none",
+                background: BLUE,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: loading || !query.trim() ? "not-allowed" : "pointer",
+                opacity: loading || !query.trim() ? 0.5 : 1,
+                boxShadow: loading || !query.trim() ? "none" : NEON,
+                transition: "all 0.18s ease"
+              }}>
+              {loading ? (
+                <span style={{
+                  width: 16, height: 16, borderRadius: "50%",
+                  border: "2.5px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#fff", display: "inline-block",
+                  animation: "wm-spin 0.7s linear infinite"
+                }} />
+              ) : (
+                <ArrowIcon />
+              )}
+            </button>
+          </div>
 
           {searchData?.detectedTimeRange && (
             <div style={{
@@ -586,8 +714,8 @@ function IndexPopup() {
             </p>
           )}
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ flex: 1, maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
               {clusters.map((c) => (
                 <div
                   key={c.id}
@@ -605,22 +733,8 @@ function IndexPopup() {
             </div>
 
             {selectedCluster && (
-              <div style={{ flex: 1.2 }}>
+              <div style={{ flex: 1.2, maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
                 <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>{selectedCluster.label}</h3>
-
-                {relatedClusters.length > 0 && (
-                  <div style={{ marginBottom: 10, fontSize: 12 }}>
-                    <strong>Related clusters</strong>
-                    {relatedClusters.map((rc) => (
-                      <div
-                        key={rc.id}
-                        style={{ color: "#007bff", cursor: "pointer", marginTop: 4 }}
-                        onClick={() => selectCluster(rc)}>
-                        {rc.label} ({rc.size})
-                      </div>
-                    ))}
-                  </div>
-                )}
 
                 {clusterMemories.map((m, i) => (
                   <div key={i} style={styles.card()}>
@@ -639,7 +753,10 @@ function IndexPopup() {
         <>
           <button
             onClick={openGraphViewer}
-            style={styles.btn("#3182ce", false)}>
+            style={{
+              ...styles.btn("#22c55e", false),
+              boxShadow: "0 0 12px rgba(34,197,94,0.65), 0 2px 8px rgba(34,197,94,0.35)"
+            }}>
             Open interactive graph viewer
           </button>
           <button
@@ -662,31 +779,10 @@ function IndexPopup() {
             </div>
           )}
 
-          {topConcepts.length > 0 ? (
-            <div>
-              <strong style={{ fontSize: 12 }}>Top concepts</strong>
-              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {topConcepts.map((c) => (
-                  <span
-                    key={c.id}
-                    style={{
-                      padding: "4px 8px",
-                      backgroundColor: "#e8f4fd",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      color: "#2c5282"
-                    }}>
-                    {c.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            !loading && (
-              <p style={{ color: "#666", fontSize: 12, textAlign: "center", marginTop: 12 }}>
-                No concepts yet. Browse pages with the extension to build the graph.
-              </p>
-            )
+          {!graphStats && !loading && (
+            <p style={{ color: "#666", fontSize: 12, textAlign: "center", marginTop: 12 }}>
+              No graph data yet. Browse pages with the extension to build the graph.
+            </p>
           )}
         </>
       )}

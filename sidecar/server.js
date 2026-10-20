@@ -1451,6 +1451,40 @@ app.get("/clusters", (req, res) => {
   }
 })
 
+// Concepts derived from a single memory (node id, e.g. "memory_144")
+app.get("/memories/:nodeId/concepts", (req, res) => {
+  try {
+    const concepts = knowledgeGraph.getMemoryConcepts(req.params.nodeId)
+      .map(c => ({ id: c.id, name: c.name, occurrenceCount: c.occurrenceCount, relevance: c.relevance }))
+      .sort((a, b) => (b.relevance || 0) - (a.relevance || 0))
+    res.json({ success: true, concepts })
+  } catch (err) {
+    logError("memory_concepts_failure", err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Memories that belong to a domain (node id, e.g. "domain_www.example.com")
+app.get("/domains/:nodeId/memories", async (req, res) => {
+  try {
+    const nodes = knowledgeGraph.getDomainMemories(req.params.nodeId)
+    const memories = []
+    for (const node of nodes) {
+      const memoryId = parseInt(node.memoryId, 10)
+      const row = await new Promise((resolve, reject) =>
+        db.get("SELECT id, title, url, timestamp FROM memories WHERE id = ?", [memoryId],
+          (err, r) => (err ? reject(err) : resolve(r)))
+      )
+      if (row) memories.push({ memoryId: row.id, title: row.title, url: row.url, timestamp: row.timestamp })
+    }
+    memories.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    res.json({ success: true, memories })
+  } catch (err) {
+    logError("domain_memories_failure", err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
 app.get("/clusters/:clusterId", (req, res) => {
   try {
     const cluster = knowledgeGraph.getCluster(req.params.clusterId)
@@ -1525,6 +1559,7 @@ app.get("/graph/data", async (req, res) => {
     const includeMemories = req.query.memories !== "false"
     const mode = ["full", "journey", "domains", "topics"].includes(req.query.mode) ? req.query.mode : "full"
     const minConceptFreq = Math.max(1, parseInt(req.query.minConceptFreq, 10) || 1)
+    const showConceptLinks = req.query.showConceptLinks === "true"
     const dateFrom = req.query.dateFrom || null
     const dateTo   = req.query.dateTo   || null
     const domain   = req.query.domain   || null
@@ -1532,7 +1567,7 @@ app.get("/graph/data", async (req, res) => {
     // Cache key: query params + a cheap graph fingerprint (order/size/dirty)
     const g = knowledgeGraph.graph
     const cacheKey = JSON.stringify([
-      limit, includeMemories, mode, minConceptFreq, dateFrom, dateTo, domain,
+      limit, includeMemories, mode, minConceptFreq, showConceptLinks, dateFrom, dateTo, domain,
       g.order, g.size, knowledgeGraph.isDirty
     ])
     const cached = graphDataCache.get(cacheKey)
@@ -1576,7 +1611,8 @@ app.get("/graph/data", async (req, res) => {
       includeMemories: mode !== "topics",
       memoryFilter,
       mode,
-      minConceptFreq
+      minConceptFreq,
+      showConceptLinks
     })
     const stats = knowledgeGraph.getStats()
 

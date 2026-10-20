@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "seed": "node seed-fake-data.js"
   },
   "keywords": [],
   "author": "",

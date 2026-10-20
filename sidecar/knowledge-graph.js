@@ -389,8 +389,26 @@ class KnowledgeGraph {
   }
 
   /**
+   * Remove all cluster nodes (and their incident edges) from the graph.
+   * Called before a fresh clustering run so stale clusters don't accumulate.
+   *
+   * @returns {number} Number of clusters removed
+   */
+  clearClusters() {
+    const clusterIds = [];
+    this.graph.forEachNode((nodeId, attrs) => {
+      if (attrs.nodeType === NodeType.CLUSTER) clusterIds.push(nodeId);
+    });
+    for (const id of clusterIds) {
+      try { this.graph.dropNode(id); } catch { /* already gone */ }
+    }
+    if (clusterIds.length > 0) this.isDirty = true;
+    return clusterIds.length;
+  }
+
+  /**
    * Get cluster by ID
-   * 
+   *
    * @param {string} clusterId - Cluster ID
    * @returns {Object|null} Cluster data or null if not found
    */
@@ -761,6 +779,28 @@ class KnowledgeGraph {
     return memories;
   }
 
+  /**
+   * Get memories that belong to a domain (via DOMAIN_MEMBERSHIP edges).
+   *
+   * @param {string} domainNodeId - Domain node ID
+   * @returns {Array<Object>} Array of memory nodes
+   */
+  getDomainMemories(domainNodeId) {
+    if (!this.graph.hasNode(domainNodeId)) {
+      return [];
+    }
+
+    const memories = [];
+    this.graph.forEachInEdge(domainNodeId, (edge, attrs, source) => {
+      if (attrs.edgeType === EdgeType.DOMAIN_MEMBERSHIP) {
+        const memory = this.getMemory(source);
+        if (memory) memories.push(memory);
+      }
+    });
+
+    return memories;
+  }
+
   // ============================================================================
   // CLUSTER MEMBERSHIP OPERATIONS
   // ============================================================================
@@ -993,7 +1033,9 @@ class KnowledgeGraph {
       includeMemories = true,
       memoryFilter   = null,  // Set of numeric SQLite memory IDs (null = all)
       mode           = "full", // "full" | "journey" | "domains" | "topics"
-      minConceptFreq = 1       // only show concepts seen in >= N pages
+      minConceptFreq = 1,      // only show concepts seen in >= N pages
+      showConceptLinks = false // concept↔concept edges are the biggest source of
+                               // clutter — hidden by default, opt in via the UI
     } = options;
 
     // ── Pass 1: collect raw node metadata ────────────────────────────────────
@@ -1197,7 +1239,9 @@ class KnowledgeGraph {
         timestamp:      n.timestamp,
         occurrenceCount: n.occurrenceCount,
         degree:         n.degree,
-        color:          { background: tc.bg, border: tc.border },
+        color:          { background: tc.bg, border: tc.border,
+                          highlight: { background: tc.bg, border: tc.border },
+                          hover:     { background: tc.bg, border: tc.border } },
         size,
         font:           { color: "#e2e8f0", size: 10, strokeWidth: 2, strokeColor: "#0a0e14" }
       };
@@ -1223,6 +1267,10 @@ class KnowledgeGraph {
 
       const et       = attrs.edgeType;
       const strength = attrs.strength || attrs.similarity || 0.5;
+
+      // Concept↔concept links are hidden unless explicitly enabled — they make up
+      // the vast majority of edges and turn the graph into a hairball.
+      if (!showConceptLinks && et === EdgeType.CONCEPT_ASSOCIATION) return;
 
       // Mode-specific edge inclusion
       if (mode === "journey") {
